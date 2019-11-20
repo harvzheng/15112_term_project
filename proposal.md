@@ -40,6 +40,12 @@ The GUI will include a few different tools that will create or edit objects on t
 * A cursor tool to select objects to be moved or deleted.
   * Will need to store the objects that are shift-clicked into a list.
 
+Additional features to implement:
+* Warning indicator, such as for an invalid image path/color/font
+* Tooltips
+* (Maybe) a splash screen for a basic tutorial
+* Bounding box around selected object(s) + resizing capabilities
+
 ### Storage
 Storing objects should be done in a way that makes it easy to export to HTML and CSS. Each type of component will get a different class: a div will get a class and text will get a class. Classes for each CSS class will also be created. Class variables will keep track of every object created.
 
@@ -59,9 +65,9 @@ When exporting to HTML and CSS, the Python function will loop through the list a
 ## Timeline Plan
 | Date  | Event | Notes |
 | ----  | ----- | --- |
-| 11/20 | Ability to create rectangles and input text | TP1
-| 11/22 | Add text to rectangles and store input text attributes as CSS classes|
-| 11/24 | Align objects and color picker |
+| 11/20 | Ability to create rectangles and input text; color palette | TP1
+| 11/22 | Add text to rectangles and store input text attributes as CSS classes; resize objects; style text|
+| 11/24 | Align objects; stylistic stuff (bounding box around selected object, icons, etc.) |
 | 11/26 | Export objects to HTML and CSS | TP2 |
 
 
