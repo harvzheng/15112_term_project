@@ -1,6 +1,5 @@
 # TODO
-# 3.a. refactor code so that top left is always x and y values
-# 4. align elements/align bar
+# 3.b. get select working with multiple objects if shift is being held
 # 5. export to absolute positions in HTML/CSS
 # 6. undo/redo commands (keep a list of max 5 of objects and moves; a function will handle where to place stuff)
 
@@ -8,7 +7,8 @@
 # 1. place and moveimages
 # 2. set background color
 # 3. toolbar
-# 3.b. get select working with multiple objects if shift is being held
+# 3.a. refactor code so that top left is always x and y values
+# 4. align elements/align bar
 
 ############################################################
 # Citations:
@@ -21,53 +21,14 @@
 from modules.cmu_112_graphics import *
 from exporter import *
 from tkinter import *
+from classes import *
 from PIL import Image
 import os
-
-class Div(object):
-    def __init__(self, x, y, width, height, color):
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
-        self.color = color
-
-class Text(object):
-    def __init__(self, x, y, width, height, content, color):
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
-        self.content = content
-        self.color = color
-
-class Img(object):
-    def __init__(self, x, y, scalingFactor, image):
-        self.x = x
-        self.y = y
-        self.scalingFactor = scalingFactor
-        height, width = image.size
-        self.height = height * self.scalingFactor
-        self.width = width * self.scalingFactor
-        self.image = image
-
-class CSSClass(object):
-    pastClasses = set()
-    def __init__(self, color, height, width):
-        self.color = color
-        self.height = height
-        self.width = width
-    def getImportantAttributes(self):
-        return (self.color, self.height, self.width)
-    def __eq__(self, other):
-        return (isinstance(other, CSSClass) and 
-                self.getImportantAttributes() == other.getImportantAttributes())
-    def __hash__(self):
-        return hash(self.getImportantAttributes())
 
 class MyApp(App):
     def appStarted(self):
         self.toolsDict = {0: "cursor", 1: "rectangle", 2: "text", 3: "image"}
+        self.aligns = {0: "left", 1: "center\nhori", 2: "right", 3: "top", 4: "center\nvert", 5: "bottom"}
         self.curTool = 0
         self.toolBarMargin = 50
         self.objects = []
@@ -130,7 +91,68 @@ class MyApp(App):
                 self.curTool = key
                 break
             initialY += 50
-    
+
+    def findSelectedAlign(self, x, y):
+        x0 = self.toolBarMargin * 2
+        for align in self.aligns:
+            if x >= x0 and x <= x0+50:
+                self.alignSelectedObjects(align)
+                break
+            x0 += 60
+        if x <= self.width and x >= self.width - 100:
+            self.exportCanvas()
+
+    def exportCanvas(self):
+        fileName = self.getUserInput("Name of HTML File?")
+        if fileName != None:
+            self.convertToCSS()
+            exportToHTML(fileName, self.objects)
+            exportToCSS(self.bgColor, CSSClass.classes)
+
+    def convertToCSS(self):
+        for obj in self.objects:
+            if isinstance(obj, Div):
+                newClass = CSSClass(obj.color, obj.height, obj.width, left=obj.x, top=obj.y)
+                obj.cssClass = CSSClass.classes[newClass]
+                
+
+    def alignSelectedObjects(self, align):
+        toAlignPositions = []
+        newPosition = None # x coord or y coord, depending on which align was selected
+        for obj in self.selectedObjs:
+            if align == 0: 
+                toAlignPositions.append(obj.x)
+                newPosition = min(toAlignPositions)
+            elif align == 1:
+                toAlignPositions.append(obj.x + obj.width/2)
+                newPosition = sum(toAlignPositions)/len(toAlignPositions)
+            elif align == 2:
+                toAlignPositions.append(obj.x + obj.width)
+                newPosition = max(toAlignPositions)
+            elif align == 3:
+                toAlignPositions.append(obj.y)
+                newPosition = min(toAlignPositions)
+            elif align == 4:
+                toAlignPositions.append(obj.y + obj.height/2)
+                newPosition = sum(toAlignPositions)/len(toAlignPositions)
+            else:
+                toAlignPositions.append(obj.y + obj.height)
+                newPosition = max(toAlignPositions)
+        for obj in self.selectedObjs:
+            if align == 0: 
+                obj.x = newPosition
+            elif align == 1:
+                obj.x = newPosition - obj.width/2
+            elif align == 2:
+                obj.x = newPosition - obj.width
+            elif align == 3:
+                obj.y = newPosition
+            elif align == 4:
+                obj.y = newPosition - obj.height/2
+            else:
+                obj.y = newPosition - obj.height
+
+
     def clearSelection(self):
         self.selectedObjs = []
         self.startItemXs = []
@@ -150,6 +172,9 @@ class MyApp(App):
     def mousePressed(self, event):
         if event.x < self.toolBarMargin and event.x > 0:
             self.findSelectedTool(event.x, event.y)
+        elif ((event.x > self.toolBarMargin and event.x <= self.width) and
+                (event.y > 0 and event.y < 50)):
+            self.findSelectedAlign(event.x, event.y)
         elif self.curTool == 0:
             self.findClickedObject(event.x, event.y)
         elif self.curTool == 1:
@@ -177,8 +202,6 @@ class MyApp(App):
     def mouseDragged(self, event):
         if self.curTool == 0 and len(self.selectedObjs) != 0:
             self.moveSelectedObjects(event.x, event.y)
-            # self.selectedObj.x = self.startItemX + event.x - self.startX
-            # self.selectedObj.y = self.startItemY + event.y - self.startY
         elif self.curTool == 1 and self.curDiv != None:
             width = event.x - self.startX
             height = event.y - self.startY
@@ -187,7 +210,11 @@ class MyApp(App):
 
     def mouseReleased(self, event):
         if self.curTool == 1 and self.curDiv != None:
-            self.objects.append(self.curDiv)
+            x0, y0 = self.curDiv.x, self.curDiv.y
+            x1 = x0 + self.curDiv.width
+            y1 = y0 + self.curDiv.height
+            self.objects.append(Div(min(x0, x1), min(y0, y1), 
+                            abs(self.curDiv.width), abs(self.curDiv.height), self.curColor))
             self.curDiv = None
 
     def drawObjects(self, canvas):
@@ -195,7 +222,7 @@ class MyApp(App):
             if isinstance(o, Div):
                 canvas.create_rectangle(o.x, o.y, o.x + o.width, o.y + o.height, fill=o.color)
             elif isinstance(o, Text):
-                canvas.create_text(o.x, o.y, text=o.content, fill=o.color)
+                canvas.create_text(o.x, o.y, text=o.content, fill=o.color, anchor="nw")
             elif isinstance(o, Img):
                 canvas.create_image(o.x, o.y, image=ImageTk.PhotoImage(o.image))
         if self.curDiv != None:
@@ -204,7 +231,7 @@ class MyApp(App):
                         fill=self.curDiv.color)
 
     def drawToolbar(self, canvas):
-        canvas.create_rectangle(0, 0, self.toolBarMargin, self.height, fill="gray")
+        canvas.create_rectangle(0, 0, self.toolBarMargin, self.height, fill="gray", width=0)
         canvas.create_rectangle(1, 10, self.toolBarMargin, 40, fill=self.curColor)
         canvas.create_rectangle(1, 50, self.toolBarMargin, 80, fill="")
         canvas.create_text(self.toolBarMargin/2, 80, text="set bg\ncolor", anchor="center")
@@ -215,8 +242,14 @@ class MyApp(App):
             newY += 50
 
     def drawAlignBar(self, canvas):
-        pass
-
+        canvas.create_rectangle(self.toolBarMargin, 0, self.width, 50, fill="grey", width=0)
+        x0 = self.toolBarMargin * 2
+        for align in self.aligns:
+            canvas.create_rectangle(x0, 0, x0+50, 50)
+            canvas.create_text(x0, 0, text=self.aligns[align], anchor="nw")
+            x0 += 60
+        canvas.create_rectangle(self.width, 0, self.width-100, 50, fill="navy", width=0)
+        canvas.create_text(self.width-50, 25, text="Export", anchor="center", fill="white", font="Helvetica 28" )
 
     def drawHighlight(self, canvas):
         for obj in self.selectedObjs:
@@ -230,14 +263,17 @@ class MyApp(App):
         if self.bgColor != None:
             canvas.create_rectangle(0, 0, self.width, self.height, fill=self.bgColor)
     
+    # to be implemented later
+    # will draw current tool on top of cursor
     def drawCursor(self, canvas):
         pass
 
     def redrawAll(self, canvas):
         self.drawBackground(canvas)
         self.drawObjects(canvas)
-        self.drawToolbar(canvas)
         self.drawHighlight(canvas)
-        canvas.create_text(self.width/2, 10, text=f"current tool: {self.toolsDict[self.curTool]}")
+        self.drawAlignBar(canvas)
+        self.drawToolbar(canvas)
+        canvas.create_text(self.width/2, 60, text=f"current tool: {self.toolsDict[self.curTool]}")
 
 MyApp(width=1000, height=1000)
