@@ -5,7 +5,7 @@ Harvey Zheng | harveyz
 
 Name: **WebSketch**
 
-The project will allow you to lay out different components to mockup or design a website, and export it to a static page with actual HTML and CSS.
+The project will allow you to lay out different components, including divs, text, and images, to mockup or design a website, and export it to a static page with actual HTML and CSS. Elements can be positioned absolutely on the page or relatively.
 
 ## Competitive Analysis
 Currently, there are a number of editors that allow you to lay out components for a website, and it will give you the HTML, CSS, and any JavaScript the site may need for things like carousels. These include companies like Mobirise, Bootstrap Studio, Adobe Muse, or SquareSpace.

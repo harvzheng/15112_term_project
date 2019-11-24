@@ -1,9 +1,22 @@
+# TODO
+# 3.a. refactor code so that top left is always x and y values
+# 4. align elements/align bar
+# 5. export to absolute positions in HTML/CSS
+# 6. undo/redo commands (keep a list of max 5 of objects and moves; a function will handle where to place stuff)
+
+# DONE
+# 1. place and moveimages
+# 2. set background color
+# 3. toolbar
+# 3.b. get select working with multiple objects if shift is being held
+
 ############################################################
 # Citations:
 # cat.jpeg is under CC0 licences from unsplash.com.
 #   link: https://unsplash.com/photos/9SWHIgu8A8k
-# Graphics package provided as a resource to be used as a part
-# of the class.
+# Graphics package provided by CMU's 15-112, which mainly uses
+# TKinter and PIL.
+#   link: https://www.cs.cmu.edu/~112/notes/cmu_112_graphics.py
 ############################################################
 from modules.cmu_112_graphics import *
 from exporter import *
@@ -29,11 +42,13 @@ class Text(object):
         self.color = color
 
 class Img(object):
-    def __init__(self, x, y, width, height, image):
+    def __init__(self, x, y, scalingFactor, image):
         self.x = x
         self.y = y
-        self.width = width
-        self.height = height
+        self.scalingFactor = scalingFactor
+        height, width = image.size
+        self.height = height * self.scalingFactor
+        self.width = width * self.scalingFactor
         self.image = image
 
 class CSSClass(object):
@@ -54,15 +69,18 @@ class MyApp(App):
     def appStarted(self):
         self.toolsDict = {0: "cursor", 1: "rectangle", 2: "text", 3: "image"}
         self.curTool = 0
-        self.toolBarMargin = 30
+        self.toolBarMargin = 50
         self.objects = []
         self.startX = 0
         self.startY = 0
-        self.startItemX = 0
-        self.startItemY = 0
+        self.startItemXs = []
+        self.startItemYs = []
         self.curDiv = None
-        self.selectedObj = None
+        self.selectedObj = []
         self.curColor = "black"
+        self.bgColor = "white"
+        self.shiftHeld = False
+        self.selectedObjs = []
 
     def keyPressed(self, event):
         if event.key == "c":
@@ -74,9 +92,15 @@ class MyApp(App):
         elif event.key == "i":
             self.curTool = 3
         elif event.key == "Escape":
-            self.selectedObj = None
+            self.clearSelection()
         elif event.key == "Delete" and self.selectedObj != None:
             self.deleteSelectedObject()
+        elif event.key == "s":
+            self.shiftHeld = True
+    
+    def keyReleased(self, event):
+        if event.key == "s":
+            self.shiftHeld = False
 
     def findClickedObject(self, x, y):
         for obj in self.objects:
@@ -84,21 +108,50 @@ class MyApp(App):
                 (obj.x > x and (obj.x + obj.width) < x)) and
                 ((obj.y < y and (obj.y + obj.height) > y) or
                 (obj.y > y and (obj.y + obj.height) < y))):
-                self.selectedObj = obj
+                if self.shiftHeld:
+                    self.selectedObjs.append(obj)
+                    break
+                else:
+                    self.selectedObjs = [obj]
+        self.startX = x
+        self.startY = y
+        for obj in self.selectedObjs:
+            self.startItemXs.append(obj.x)
+            self.startItemYs.append(obj.y)
+
+    def findSelectedTool(self, x, y):
+        if y <= 30 and y >= 0:
+            self.curColor = self.getUserInput("Input a new color")
+        elif y > 50 and y < 80:
+            self.bgColor = self.curColor
+        initialY = 90
+        for key in self.toolsDict:
+            if (y >= initialY and y <= (initialY + 30)):
+                self.curTool = key
+                break
+            initialY += 50
+    
+    def clearSelection(self):
+        self.selectedObjs = []
+        self.startItemXs = []
+        self.startItemYs = []
 
     def deleteSelectedObject(self):
-        self.objects.remove(self.selectedObj)
+        for obj in self.selectedObjs:
+            self.objects.remove(obj)
+            self.clearSelection()
+
+    def moveSelectedObjects(self, x, y):
+        for i in range(len(self.selectedObjs)):
+            obj = self.selectedObjs[i]
+            obj.x = self.startItemXs[i] + x - self.startX
+            obj.y = self.startItemYs[i] + y - self.startY
 
     def mousePressed(self, event):
-        if event.x < 30 and event.x > 0 and event.y > 10 and event.y < 40:
-            self.curColor = self.getUserInput("Input a new color")
+        if event.x < self.toolBarMargin and event.x > 0:
+            self.findSelectedTool(event.x, event.y)
         elif self.curTool == 0:
             self.findClickedObject(event.x, event.y)
-            if self.selectedObj != None:
-                self.startItemX = self.selectedObj.x
-                self.startItemY = self.selectedObj.y
-                self.startX = event.x
-                self.startY = event.y
         elif self.curTool == 1:
             self.startX = event.x
             self.startY = event.y
@@ -108,18 +161,24 @@ class MyApp(App):
             newText = Text(event.x, event.y, 300, 300, content, self.curColor)
             self.objects.append(newText)
         elif self.curTool == 3:
-            imagePath = os.getcwd() + '/' + self.getUserInput("Image path")
-            try:
-                img = self.loadImage(imagePath)
-                newImg = Img(event.x, event.y, 500, 500, img)
-                self.objects.append(newImg)
-            except:
-                print(f"Path not valid: {imagePath}")
+            imageName = self.getUserInput("Image path")
+            if imageName != "":
+                imagePath = os.getcwd() + '/' + imageName
+                try:
+                    img = self.loadImage(imagePath)
+                    imgWidth, imgHeight = img.size
+                    img = self.scaleImage(img, 500/(max(imgWidth, imgHeight)))
+
+                    newImg = Img(event.x, event.y, 500/(max(imgWidth, imgHeight)), img)
+                    self.objects.append(newImg)
+                except:
+                    print(f"Path not valid: {imagePath}")
 
     def mouseDragged(self, event):
-        if self.curTool == 0 and self.selectedObj != None:
-            self.selectedObj.x = self.startItemX + event.x - self.startX
-            self.selectedObj.y = self.startItemY + event.y - self.startY
+        if self.curTool == 0 and len(self.selectedObjs) != 0:
+            self.moveSelectedObjects(event.x, event.y)
+            # self.selectedObj.x = self.startItemX + event.x - self.startX
+            # self.selectedObj.y = self.startItemY + event.y - self.startY
         elif self.curTool == 1 and self.curDiv != None:
             width = event.x - self.startX
             height = event.y - self.startY
@@ -138,7 +197,7 @@ class MyApp(App):
             elif isinstance(o, Text):
                 canvas.create_text(o.x, o.y, text=o.content, fill=o.color)
             elif isinstance(o, Img):
-                canvas.create_image(o.height, o.width, image=ImageTk.PhotoImage(o.image))
+                canvas.create_image(o.x, o.y, image=ImageTk.PhotoImage(o.image))
         if self.curDiv != None:
             canvas.create_rectangle(self.curDiv.x, self.curDiv.y, 
                         self.curDiv.x + self.curDiv.width, self.curDiv.y + self.curDiv.height, 
@@ -146,19 +205,36 @@ class MyApp(App):
 
     def drawToolbar(self, canvas):
         canvas.create_rectangle(0, 0, self.toolBarMargin, self.height, fill="gray")
-        canvas.create_rectangle(0, 10, self.toolBarMargin, 40, fill=self.curColor)
-        canvas.create_rectangle(0, 50, self.toolBarMargin, 80, fill="")
-        canvas.create_text(0, 50, text="cursor", anchor="nw")
+        canvas.create_rectangle(1, 10, self.toolBarMargin, 40, fill=self.curColor)
+        canvas.create_rectangle(1, 50, self.toolBarMargin, 80, fill="")
+        canvas.create_text(self.toolBarMargin/2, 80, text="set bg\ncolor", anchor="center")
+        newY = 90
+        for key in self.toolsDict:
+            canvas.create_rectangle(0, newY, self.toolBarMargin, newY + 30)
+            canvas.create_text(self.toolBarMargin/2, newY + 35, text=self.toolsDict[key], anchor="center")
+            newY += 50
+
+    def drawAlignBar(self, canvas):
+        pass
+
 
     def drawHighlight(self, canvas):
-        if self.selectedObj != None:
-            x = self.selectedObj.x
-            y = self.selectedObj.y
-            height = self.selectedObj.height
-            width = self.selectedObj.width
+        for obj in self.selectedObjs:
+            x = obj.x
+            y = obj.y
+            height = obj.height
+            width = obj.width
             canvas.create_rectangle(x, y, x+width, y+height, outline="red", width=5)
 
+    def drawBackground(self, canvas):
+        if self.bgColor != None:
+            canvas.create_rectangle(0, 0, self.width, self.height, fill=self.bgColor)
+    
+    def drawCursor(self, canvas):
+        pass
+
     def redrawAll(self, canvas):
+        self.drawBackground(canvas)
         self.drawObjects(canvas)
         self.drawToolbar(canvas)
         self.drawHighlight(canvas)
