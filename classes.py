@@ -15,26 +15,30 @@ class Text(object):
         self.height = height
         self.content = content
         self.color = color
+        self.font_family = "Arial"
+        self.font_size = 14
 
 class Img(object):
     def __init__(self, x, y, scalingFactor, image):
         self.x = x
         self.y = y
         self.scalingFactor = scalingFactor
-        height, width = image.size
-        self.height = height * self.scalingFactor
-        self.width = width * self.scalingFactor
+        width, height = image.size
+        self.height = height
+        self.width = width
         self.image = image
 
 class CSSClass(object):
     pastClasses = set()
     classes = dict()
-    def __init__(self, color, height, width, left=None, top=None):
+    def __init__(self, color=None, height=None, width=None, left=None, top=None, font_family=None, font_size=None):
         self.color = color
         self.height = height
         self.width = width
         self.left = left
         self.top = top
+        self.font_family = font_family
+        self.font_size = font_size
         if self not in CSSClass.pastClasses:
             CSSClass.pastClasses.add(self)
             newVal = "class" + str(len(CSSClass.classes))

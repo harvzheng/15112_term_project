@@ -4,28 +4,41 @@ from classes import *
 def exportToHTML(fileName, listOfObjects):
     cleanFiles()
     os.mkdir("export")
-    html = open(f"export/{fileName}.html", "w")
+    html = open(f"export/index.html", "w")
     initialHTML = getInitialHTML(fileName)
     html.write(initialHTML)
     for obj in listOfObjects:
         if isinstance(obj, Div):
-            newDiv = f'<div class={obj.cssClass}></div>'
+            newDiv = f'\t<div class={obj.cssClass}></div>'
             html.write(newDiv)
+        elif isinstance(obj, Text):
+            newSpan = f'\t<span class={obj.cssClass}>{obj.content}</span>'
+            html.write(newSpan)
     finalHTML = getFinalHTML()
     html.write(finalHTML)
     html.close()
 
 def exportToCSS(backgroundColor, dictOfClasses):
     css = open("export/style.css", "w")
-    bgColor = "body { background-color: " + backgroundColor + "}"
+    bgColor = "body {\n\tbackground-color: " + backgroundColor + ";\n}\n"
     css.write(bgColor)
     for cssClass in dictOfClasses:
-        cssCode = getCSSDivCode(cssClass, dictOfClasses[cssClass])
+        cssCode = ""
+        print(cssClass.color, cssClass.height)
+        if cssClass.color != None and cssClass.height != None:
+            # for divs
+            cssCode = getCSSDivCode(cssClass, dictOfClasses[cssClass])
+        elif cssClass.height == None:
+            # for text
+            cssCode = getCSSTextCode(cssClass, dictOfClasses[cssClass])
+        # else:
+            # for imgs
+            # cssCode = getCSSImgCode(cssClass, dictOfClasses[cssClass])
         css.write(cssCode)
     css.close()
 
 def getCSSDivCode(cssClass, cssClassName):
-    cssCode = f'.{cssClassName} {{\n'
+    cssCode = f'\n.{cssClassName} {{\n'
     cssCode += '\tposition: absolute;\n'
     for prop in cssClass.__dict__:
         value = cssClass.__dict__[prop]
@@ -35,7 +48,27 @@ def getCSSDivCode(cssClass, cssClassName):
             cssCode += f'\t{prop}: {value}px;\n'
         elif value != None:
             cssCode += f'\t{prop}: {value};\n'
-    cssCode += '}'
+    cssCode += '}\n'
+    return cssCode
+
+def getCSSTextCode(cssClass, cssClassName):
+    cssCode = f'\n.{cssClassName} {{\n'
+    cssCode += '\tposition: absolute;\n'
+    for prop in cssClass.__dict__:
+        value = cssClass.__dict__[prop]
+        if prop == "color":
+            cssCode += f'\tcolor: {value};\n'
+        elif type(prop) == str and prop.startswith("font"):
+            newProp = '-'.join(prop.split('_'))
+            if newProp.endswith('size'):
+                cssCode += f'\t{newProp}: {value}px;\n'
+            else:
+                cssCode += f'\t{newProp}: {value};\n'
+        elif type(value) == int:
+            cssCode += f'\t{prop}: {value}px;\n'
+        elif value != None:
+            cssCode += f'\t{prop}: {value};\n'
+    cssCode += '}\n'
     return cssCode
 
 def getInitialHTML(fileName):

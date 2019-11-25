@@ -103,7 +103,7 @@ class MyApp(App):
             self.exportCanvas()
 
     def exportCanvas(self):
-        fileName = self.getUserInput("Name of HTML File?")
+        fileName = self.getUserInput("Name of Site?")
         if fileName != None:
             self.convertToCSS()
             exportToHTML(fileName, self.objects)
@@ -114,7 +114,10 @@ class MyApp(App):
             if isinstance(obj, Div):
                 newClass = CSSClass(obj.color, obj.height, obj.width, left=obj.x, top=obj.y)
                 obj.cssClass = CSSClass.classes[newClass]
-                
+            elif isinstance(obj, Text):
+                newClass = CSSClass(obj.color, left=obj.x, top=obj.y, font_family=obj.font_family, 
+                                    font_size=obj.font_size)
+                obj.cssClass = CSSClass.classes[newClass]
 
     def alignSelectedObjects(self, align):
         toAlignPositions = []
@@ -151,7 +154,6 @@ class MyApp(App):
                 obj.y = newPosition - obj.height/2
             else:
                 obj.y = newPosition - obj.height
-
 
     def clearSelection(self):
         self.selectedObjs = []
