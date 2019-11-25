@@ -1,5 +1,6 @@
 import os
 from classes import *
+from PIL import Image
 
 def exportToHTML(fileName, listOfObjects):
     cleanFiles()
@@ -7,6 +8,7 @@ def exportToHTML(fileName, listOfObjects):
     html = open(f"export/index.html", "w")
     initialHTML = getInitialHTML(fileName)
     html.write(initialHTML)
+    numImg = 0
     for obj in listOfObjects:
         if isinstance(obj, Div):
             newDiv = f'\t<div class={obj.cssClass}></div>'
@@ -14,6 +16,12 @@ def exportToHTML(fileName, listOfObjects):
         elif isinstance(obj, Text):
             newSpan = f'\t<span class={obj.cssClass}>{obj.content}</span>'
             html.write(newSpan)
+        elif isinstance(obj, Img):
+            imagePath = f'image{numImg}.{obj.image.format}'
+            obj.image.save('export/' + imagePath)
+            newImg = f'\t<img class={obj.cssClass} src="{imagePath}"/>'
+            html.write(newImg)
+            numImg += 1
     finalHTML = getFinalHTML()
     html.write(finalHTML)
     html.close()
@@ -24,16 +32,15 @@ def exportToCSS(backgroundColor, dictOfClasses):
     css.write(bgColor)
     for cssClass in dictOfClasses:
         cssCode = ""
-        print(cssClass.color, cssClass.height)
         if cssClass.color != None and cssClass.height != None:
             # for divs
             cssCode = getCSSDivCode(cssClass, dictOfClasses[cssClass])
         elif cssClass.height == None:
             # for text
             cssCode = getCSSTextCode(cssClass, dictOfClasses[cssClass])
-        # else:
+        else:
             # for imgs
-            # cssCode = getCSSImgCode(cssClass, dictOfClasses[cssClass])
+            cssCode = getCSSImgCode(cssClass, dictOfClasses[cssClass])
         css.write(cssCode)
     css.close()
 
@@ -65,6 +72,18 @@ def getCSSTextCode(cssClass, cssClassName):
             else:
                 cssCode += f'\t{newProp}: {value};\n'
         elif type(value) == int:
+            cssCode += f'\t{prop}: {value}px;\n'
+        elif value != None:
+            cssCode += f'\t{prop}: {value};\n'
+    cssCode += '}\n'
+    return cssCode
+
+def getCSSImgCode(cssClass, cssClassName):
+    cssCode = f'\n.{cssClassName} {{\n'
+    cssCode += '\tposition: absolute;\n'
+    for prop in cssClass.__dict__:
+        value = cssClass.__dict__[prop]
+        if type(value) == int:
             cssCode += f'\t{prop}: {value}px;\n'
         elif value != None:
             cssCode += f'\t{prop}: {value};\n'

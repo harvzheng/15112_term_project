@@ -1,6 +1,5 @@
 # TODO
 # 3.b. get select working with multiple objects if shift is being held
-# 5. export to absolute positions in HTML/CSS
 # 6. undo/redo commands (keep a list of max 5 of objects and moves; a function will handle where to place stuff)
 
 # DONE
@@ -9,6 +8,7 @@
 # 3. toolbar
 # 3.a. refactor code so that top left is always x and y values
 # 4. align elements/align bar
+# 5. export to absolute positions in HTML/CSS
 
 ############################################################
 # Citations:
@@ -118,6 +118,11 @@ class MyApp(App):
                 newClass = CSSClass(obj.color, left=obj.x, top=obj.y, font_family=obj.font_family, 
                                     font_size=obj.font_size)
                 obj.cssClass = CSSClass.classes[newClass]
+            elif isinstance(obj, Img):
+                x0 = obj.x - obj.width//2
+                y0 = obj.y - obj.height//2
+                newClass = CSSClass(height=obj.height, width=obj.width, left=x0, top=y0)
+                obj.cssClass = CSSClass.classes[newClass]
 
     def alignSelectedObjects(self, align):
         toAlignPositions = []
@@ -192,11 +197,11 @@ class MyApp(App):
             if imageName != "":
                 imagePath = os.getcwd() + '/' + imageName
                 try:
-                    img = self.loadImage(imagePath)
-                    imgWidth, imgHeight = img.size
-                    img = self.scaleImage(img, 500/(max(imgWidth, imgHeight)))
-
-                    newImg = Img(event.x, event.y, 500/(max(imgWidth, imgHeight)), img)
+                    image = self.loadImage(imagePath)
+                    imgWidth, imgHeight = image.size
+                    newImage = self.scaleImage(image, 500/(max(imgWidth, imgHeight)))
+                    newImage.format = image.format
+                    newImg = Img(event.x, event.y, 500/(max(imgWidth, imgHeight)), newImage)
                     self.objects.append(newImg)
                 except:
                     print(f"Path not valid: {imagePath}")
@@ -211,7 +216,7 @@ class MyApp(App):
             self.curDiv.width = width
 
     def mouseReleased(self, event):
-        if self.curTool == 1 and self.curDiv != None:
+        if self.curTool == 1 and self.curDiv != None and self.curDiv.height > 5 and self.curDiv.width > 5:
             x0, y0 = self.curDiv.x, self.curDiv.y
             x1 = x0 + self.curDiv.width
             y1 = y0 + self.curDiv.height
