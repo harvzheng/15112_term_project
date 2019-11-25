@@ -51,8 +51,8 @@ def getCSSDivCode(cssClass, cssClassName):
         value = cssClass.__dict__[prop]
         if prop == "color":
             cssCode += f'\tbackground-color: {value};\n'
-        elif type(value) == int:
-            cssCode += f'\t{prop}: {value}px;\n'
+        elif type(value) == int or type(value) == float:
+            cssCode += f'\t{prop}: {int(value)}px;\n'
         elif value != None:
             cssCode += f'\t{prop}: {value};\n'
     cssCode += '}\n'
@@ -71,8 +71,8 @@ def getCSSTextCode(cssClass, cssClassName):
                 cssCode += f'\t{newProp}: {value}px;\n'
             else:
                 cssCode += f'\t{newProp}: {value};\n'
-        elif type(value) == int:
-            cssCode += f'\t{prop}: {value}px;\n'
+        elif type(value) == int or type(value) == float:
+            cssCode += f'\t{prop}: {int(value)}px;\n'
         elif value != None:
             cssCode += f'\t{prop}: {value};\n'
     cssCode += '}\n'
@@ -83,8 +83,8 @@ def getCSSImgCode(cssClass, cssClassName):
     cssCode += '\tposition: absolute;\n'
     for prop in cssClass.__dict__:
         value = cssClass.__dict__[prop]
-        if type(value) == int:
-            cssCode += f'\t{prop}: {value}px;\n'
+        if type(value) == int or type(value) == float:
+            cssCode += f'\t{prop}: {int(value)}px;\n'
         elif value != None:
             cssCode += f'\t{prop}: {value};\n'
     cssCode += '}\n'
