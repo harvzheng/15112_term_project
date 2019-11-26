@@ -98,3 +98,11 @@ My plan to back up my code is to regularly push to a public GitHub repository.
 ## Module List
 * HTML
 * CSS
+
+## TP2 Update
+
+Some additional features I'll implement/have implemented are:
+* Undo/redo on the canvas
+* Change background color of the canvas
+
+Everything else will go on as previously stated.

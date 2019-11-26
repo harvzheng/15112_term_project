@@ -31,6 +31,7 @@ class MyApp(App):
         self.aligns = {0: "left", 1: "center\nhori", 2: "right", 3: "top", 4: "center\nvert", 5: "bottom"}
         self.curTool = 0
         self.toolBarMargin = 50
+        self.alignBarMargin = 50
         self.objects = []
         self.startX = 0
         self.startY = 0
@@ -42,6 +43,8 @@ class MyApp(App):
         self.bgColor = "white"
         self.shiftHeld = False
         self.selectedObjs = []
+        self.moves = []
+        self.nextMoves = []
 
     def keyPressed(self, event):
         if event.key == "c":
@@ -58,10 +61,42 @@ class MyApp(App):
             self.deleteSelectedObject()
         elif event.key == "s":
             self.shiftHeld = True
+        elif event.key == "Z":
+            self.undo()
+        elif event.key == "Y":
+            self.redo()
     
     def keyReleased(self, event):
         if event.key == "s":
             self.shiftHeld = False
+
+    def undo(self):
+        if len(self.moves) == 0:
+            return
+        lastMove = self.moves.pop()
+        self.nextMoves.append(lastMove)
+        if lastMove[0] == "add":
+            print(f"undoing by removing {lastMove[1]}")
+        elif lastMove[0] == "remove":
+            print(f"undoing by adding{lastMove[1]}")
+        elif lastMove[0] == "move":
+            for move in lastMove[1:]:
+                print(f"undoing by moving {move[0]} from ({move[0].x}, {move[0].y}) to {move[1]} ")
+        elif lastMove[0] == "change bg":
+            print(f"undoing by changing bg from {lastMove[2]} to {lastMove[1]}")
+
+    def redo(self):
+        if len(self.nextMoves) == 0:
+            return
+        nextMove = self.nextMoves.pop()
+        self.moves.append(nextMove)
+        if nextMove[0] == "add":
+            print(f"redo by adding {nextMove[1]}")
+        elif nextMove[0] == "remove":
+            print(f"undoing by removing {nextMove[1]}")
+        elif nextMove[0] == "move":
+            for move in nextMove[1:]:
+                print(f"redoing by moving {move[0]} from ({move[1]}) to {move[0].x}, {move[0].y} ")
 
     def findClickedObject(self, x, y):
         for obj in self.objects:
@@ -84,12 +119,12 @@ class MyApp(App):
         if y <= 30 and y >= 0:
             self.curColor = self.getUserInput("Input a new color")
         elif y > 50 and y < 80:
+            self.moves.append(("change bg", self.bgColor, self.curColor))
             self.bgColor = self.curColor
         initialY = 90
         for key in self.toolsDict:
             if (y >= initialY and y <= (initialY + 30)):
                 self.curTool = key
-                break
             initialY += 50
 
     def findSelectedAlign(self, x, y):
@@ -112,15 +147,16 @@ class MyApp(App):
     def convertToCSS(self):
         for obj in self.objects:
             if isinstance(obj, Div):
-                newClass = CSSClass(obj.color, obj.height, obj.width, left=obj.x, top=obj.y)
+                newClass = CSSClass(obj.color, obj.height, obj.width, 
+                                    left=obj.x-self.toolBarMargin, top=obj.y-self.alignBarMargin)
                 obj.cssClass = CSSClass.classes[newClass]
             elif isinstance(obj, Text):
-                newClass = CSSClass(obj.color, left=obj.x, top=obj.y, font_family=obj.font_family, 
-                                    font_size=obj.font_size)
+                newClass = CSSClass(obj.color, left=obj.x-self.toolBarMargin, top=obj.y-self.alignBarMargin, 
+                        font_family=obj.font_family, font_size=obj.font_size)
                 obj.cssClass = CSSClass.classes[newClass]
             elif isinstance(obj, Img):
-                x0 = obj.x - obj.width//2
-                y0 = obj.y - obj.height//2
+                x0 = obj.x - obj.width//2 - self.toolBarMargin
+                y0 = obj.y - obj.height//2 - self.alignBarMargin
                 newClass = CSSClass(height=obj.height, width=obj.width, left=x0, top=y0)
                 obj.cssClass = CSSClass.classes[newClass]
 
@@ -167,14 +203,19 @@ class MyApp(App):
 
     def deleteSelectedObject(self):
         for obj in self.selectedObjs:
+            self.moves.append(("delete", obj))
             self.objects.remove(obj)
             self.clearSelection()
 
     def moveSelectedObjects(self, x, y):
+        move = ["move"]
         for i in range(len(self.selectedObjs)):
             obj = self.selectedObjs[i]
             obj.x = self.startItemXs[i] + x - self.startX
             obj.y = self.startItemYs[i] + y - self.startY
+            move.append((obj, (self.startItemXs[i], self.startItemYs[i])))
+        if len(self.moves) == 0 or self.moves[-1] != move:
+            self.moves.append(move)
 
     def mousePressed(self, event):
         if event.x < self.toolBarMargin and event.x > 0:
@@ -192,6 +233,7 @@ class MyApp(App):
             content = self.getUserInput("Input text")
             newText = Text(event.x, event.y, 300, 300, content, self.curColor)
             self.objects.append(newText)
+            self.moves.append(("add", newText))
         elif self.curTool == 3:
             imageName = self.getUserInput("Image path")
             if imageName != "":
@@ -203,6 +245,7 @@ class MyApp(App):
                     newImage.format = image.format
                     newImg = Img(event.x, event.y, 500/(max(imgWidth, imgHeight)), newImage)
                     self.objects.append(newImg)
+                    self.moves.append(("add", newImg))
                 except:
                     print(f"Path not valid: {imagePath}")
 
@@ -222,6 +265,7 @@ class MyApp(App):
             y1 = y0 + self.curDiv.height
             self.objects.append(Div(min(x0, x1), min(y0, y1), 
                             abs(self.curDiv.width), abs(self.curDiv.height), self.curColor))
+            self.moves.append(("add", self.curDiv))
             self.curDiv = None
 
     def drawObjects(self, canvas):
@@ -273,6 +317,7 @@ class MyApp(App):
     # to be implemented later
     # will draw current tool on top of cursor
     def drawCursor(self, canvas):
+
         pass
 
     def redrawAll(self, canvas):
