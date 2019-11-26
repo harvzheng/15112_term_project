@@ -1,14 +1,6 @@
 # TODO
-# 3.b. get select working with multiple objects if shift is being held
-# 6. undo/redo commands (keep a list of max 5 of objects and moves; a function will handle where to place stuff)
-
-# DONE
-# 1. place and moveimages
-# 2. set background color
-# 3. toolbar
-# 3.a. refactor code so that top left is always x and y values
-# 4. align elements/align bar
-# 5. export to absolute positions in HTML/CSS
+# • polish moving while selected
+# • fix image + text hitboxes
 
 ############################################################
 # Citations:
@@ -76,14 +68,19 @@ class MyApp(App):
         lastMove = self.moves.pop()
         self.nextMoves.append(lastMove)
         if lastMove[0] == "add":
-            print(f"undoing by removing {lastMove[1]}")
+            self.objects.remove(lastMove[1])
+            # print(f"undoing by removing {lastMove[1]}")
         elif lastMove[0] == "remove":
-            print(f"undoing by adding{lastMove[1]}")
+            self.objects.add(lastMove[1])
+            # print(f"undoing by adding{lastMove[1]}")
         elif lastMove[0] == "move":
             for move in lastMove[1:]:
-                print(f"undoing by moving {move[0]} from ({move[0].x}, {move[0].y}) to {move[1]} ")
+                move[0].x = move[1][0]
+                move[0].y = move[1][1]
+                # print(f"undoing by moving {move[0]} from ({move[0].x}, {move[0].y}) to {move[1]} ")
         elif lastMove[0] == "change bg":
-            print(f"undoing by changing bg from {lastMove[2]} to {lastMove[1]}")
+            self.bgColor = lastMove[1]
+            # print(f"undoing by changing bg from {lastMove[2]} to {lastMove[1]}")
 
     def redo(self):
         if len(self.nextMoves) == 0:
@@ -91,12 +88,17 @@ class MyApp(App):
         nextMove = self.nextMoves.pop()
         self.moves.append(nextMove)
         if nextMove[0] == "add":
-            print(f"redo by adding {nextMove[1]}")
+            self.objects.append(nextMove[1])
+            # print(f"redo by adding {nextMove[1]}")
         elif nextMove[0] == "remove":
-            print(f"undoing by removing {nextMove[1]}")
+            self.objects.remove(nextMove[1])
+            # print(f"undoing by removing {nextMove[1]}")
         elif nextMove[0] == "move":
             for move in nextMove[1:]:
-                print(f"redoing by moving {move[0]} from ({move[1]}) to {move[0].x}, {move[0].y} ")
+                move[0].x = move[2][0]
+                move[0].y = move[2][1]
+                # print(f"redoing by moving {move[0]} from ({move[1]}) to ({move[2]}) ")
+        
 
     def findClickedObject(self, x, y):
         for obj in self.objects:
@@ -109,6 +111,8 @@ class MyApp(App):
                     break
                 else:
                     self.selectedObjs = [obj]
+        self.startItemXs = []
+        self.startItemYs = []
         self.startX = x
         self.startY = y
         for obj in self.selectedObjs:
@@ -213,9 +217,9 @@ class MyApp(App):
             obj = self.selectedObjs[i]
             obj.x = self.startItemXs[i] + x - self.startX
             obj.y = self.startItemYs[i] + y - self.startY
-            move.append((obj, (self.startItemXs[i], self.startItemYs[i])))
-        if len(self.moves) == 0 or self.moves[-1] != move:
-            self.moves.append(move)
+            # move.append((obj, (self.startItemXs[i], self.startItemYs[i]), (obj.x, obj.y)))
+        # if len(self.moves) == 0 or self.moves[-1] != move:
+        #     self.moves.append(move)
 
     def mousePressed(self, event):
         if event.x < self.toolBarMargin and event.x > 0:
@@ -259,13 +263,21 @@ class MyApp(App):
             self.curDiv.width = width
 
     def mouseReleased(self, event):
-        if self.curTool == 1 and self.curDiv != None and self.curDiv.height > 5 and self.curDiv.width > 5:
+        if self.curTool == 0 and len(self.selectedObjs) != 0:
+            move = ["move"]
+            for i in range(len(self.selectedObjs)):
+                obj = self.selectedObjs[i]
+                move.append((obj, (self.startItemXs[i], self.startItemYs[i]), (obj.x, obj.y)))
+            if len(self.moves) == 0 or self.moves[-1] != move:
+                self.moves.append(move)
+        elif self.curTool == 1 and self.curDiv != None and self.curDiv.height > 5 and self.curDiv.width > 5:
             x0, y0 = self.curDiv.x, self.curDiv.y
             x1 = x0 + self.curDiv.width
             y1 = y0 + self.curDiv.height
-            self.objects.append(Div(min(x0, x1), min(y0, y1), 
-                            abs(self.curDiv.width), abs(self.curDiv.height), self.curColor))
-            self.moves.append(("add", self.curDiv))
+            newDiv = Div(min(x0, x1), min(y0, y1), 
+                            abs(self.curDiv.width), abs(self.curDiv.height), self.curColor)
+            self.objects.append(newDiv)
+            self.moves.append(("add", newDiv))
             self.curDiv = None
 
     def drawObjects(self, canvas):
