@@ -1,6 +1,11 @@
 # TODO
 # • polish moving while selected
 # • fix image + text hitboxes
+# • add relative positioning
+# • add error messages
+# • add cursor
+# • add scaling of images and divs
+# • convert "buttons" to tkinter buttons
 
 ############################################################
 # Citations:
@@ -13,6 +18,7 @@
 from modules.cmu_112_graphics import *
 from exporter import *
 from tkinter import *
+from tkinter import colorchooser
 from classes import *
 from PIL import Image
 import os
@@ -33,6 +39,8 @@ class MyApp(App):
         self.selectedObj = []
         self.curColor = "black"
         self.bgColor = "white"
+        self.curFont = "Helvetica"
+        self.curFontSize = 14
         self.shiftHeld = False
         self.selectedObjs = []
         self.moves = []
@@ -69,18 +77,15 @@ class MyApp(App):
         self.nextMoves.append(lastMove)
         if lastMove[0] == "add":
             self.objects.remove(lastMove[1])
-            # print(f"undoing by removing {lastMove[1]}")
-        elif lastMove[0] == "remove":
-            self.objects.add(lastMove[1])
-            # print(f"undoing by adding{lastMove[1]}")
+        elif lastMove[0] == "delete":
+            self.objects.append(lastMove[1])
+            print(f"undoing by adding{lastMove[1]}")
         elif lastMove[0] == "move":
             for move in lastMove[1:]:
                 move[0].x = move[1][0]
                 move[0].y = move[1][1]
-                # print(f"undoing by moving {move[0]} from ({move[0].x}, {move[0].y}) to {move[1]} ")
         elif lastMove[0] == "change bg":
             self.bgColor = lastMove[1]
-            # print(f"undoing by changing bg from {lastMove[2]} to {lastMove[1]}")
 
     def redo(self):
         if len(self.nextMoves) == 0:
@@ -89,15 +94,12 @@ class MyApp(App):
         self.moves.append(nextMove)
         if nextMove[0] == "add":
             self.objects.append(nextMove[1])
-            # print(f"redo by adding {nextMove[1]}")
-        elif nextMove[0] == "remove":
+        elif nextMove[0] == "delete":
             self.objects.remove(nextMove[1])
-            # print(f"undoing by removing {nextMove[1]}")
         elif nextMove[0] == "move":
             for move in nextMove[1:]:
                 move[0].x = move[2][0]
                 move[0].y = move[2][1]
-                # print(f"redoing by moving {move[0]} from ({move[1]}) to ({move[2]}) ")
         
 
     def findClickedObject(self, x, y):
@@ -121,7 +123,9 @@ class MyApp(App):
 
     def findSelectedTool(self, x, y):
         if y <= 30 and y >= 0:
-            self.curColor = self.getUserInput("Input a new color")
+            newColor = colorchooser.askcolor(initialcolor=self.curColor)
+            if newColor != (None, None):
+                self.curColor = newColor[-1]
         elif y > 50 and y < 80:
             self.moves.append(("change bg", self.bgColor, self.curColor))
             self.bgColor = self.curColor
@@ -140,6 +144,20 @@ class MyApp(App):
             x0 += 60
         if x <= self.width and x >= self.width - 100:
             self.exportCanvas()
+        elif x >= self.width - 200 and x <= self.width - 150:
+            self.curFont = self.getUserInput("Font family?")
+            self.updateSelected()
+        elif x >= self.width - 300 and x <= self.width - 250:
+            self.curFontSize = self.getUserInput("Font size?")
+            self.updateSelected()
+        elif x >= self.width - 400 and x <= self.width - 350 and len(self.selectedObjs) == 1:
+            newText = self.getUserInput("New text?")
+            self.selectedObjs[0].content = newText
+
+    def updateSelected(self):
+        for obj in self.selectedObjs:
+            obj.font_family = self.curFont
+            obj.font_size = self.curFontSize
 
     def exportCanvas(self):
         fileName = self.getUserInput("Name of Site?")
@@ -220,6 +238,11 @@ class MyApp(App):
             # move.append((obj, (self.startItemXs[i], self.startItemYs[i]), (obj.x, obj.y)))
         # if len(self.moves) == 0 or self.moves[-1] != move:
         #     self.moves.append(move)
+    def selectedHasText(self):
+        for obj in self.selectedObjs:
+            if type(obj) != Text:
+                return False
+        return True
 
     def mousePressed(self, event):
         if event.x < self.toolBarMargin and event.x > 0:
@@ -235,7 +258,7 @@ class MyApp(App):
             self.curDiv = Div(self.startX, self.startY, 0, 0, self.curColor)
         elif self.curTool == 2:
             content = self.getUserInput("Input text")
-            newText = Text(event.x, event.y, 300, 300, content, self.curColor)
+            newText = Text(event.x, event.y, 300, 300, content, self.curColor, self.curFont, self.curFontSize)
             self.objects.append(newText)
             self.moves.append(("add", newText))
         elif self.curTool == 3:
@@ -285,7 +308,7 @@ class MyApp(App):
             if isinstance(o, Div):
                 canvas.create_rectangle(o.x, o.y, o.x + o.width, o.y + o.height, fill=o.color)
             elif isinstance(o, Text):
-                canvas.create_text(o.x, o.y, text=o.content, fill=o.color, anchor="nw")
+                canvas.create_text(o.x, o.y, text=o.content, fill=o.color, anchor="nw", font=f"{o.font_family} {o.font_size}")
             elif isinstance(o, Img):
                 canvas.create_image(o.x, o.y, image=ImageTk.PhotoImage(o.image))
         if self.curDiv != None:
@@ -304,6 +327,7 @@ class MyApp(App):
             canvas.create_text(self.toolBarMargin/2, newY + 35, text=self.toolsDict[key], anchor="center")
             newY += 50
 
+
     def drawAlignBar(self, canvas):
         canvas.create_rectangle(self.toolBarMargin, 0, self.width, 50, fill="grey", width=0)
         x0 = self.toolBarMargin * 2
@@ -313,6 +337,14 @@ class MyApp(App):
             x0 += 60
         canvas.create_rectangle(self.width, 0, self.width-100, 50, fill="navy", width=0)
         canvas.create_text(self.width-50, 25, text="Export", anchor="center", fill="white", font="Helvetica 28" )
+        if self.curTool == 2 or (self.curTool == 0 and self.selectedHasText()):
+            self.drawTextTools(canvas)
+    
+    def drawTextTools(self, canvas):
+        canvas.create_text(self.width - 150, 15, text=f"font family:\n{self.curFont}", anchor="e")
+        canvas.create_text(self.width - 250, 15, text=f"font size:\n{self.curFontSize}", anchor="e")
+        if len(self.selectedObjs) == 1:
+            canvas.create_text(self.width - 350, 15, text=f"edit text", anchor="e")
 
     def drawHighlight(self, canvas):
         for obj in self.selectedObjs:

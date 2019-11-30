@@ -8,15 +8,15 @@ class Div(object):
         self.cssClass = None
 
 class Text(object):
-    def __init__(self, x, y, width, height, content, color):
+    def __init__(self, x, y, width, height, content, color, font_family, font_size):
         self.x = x
         self.y = y
         self.width = width
         self.height = height
         self.content = content
         self.color = color
-        self.font_family = "Arial"
-        self.font_size = 14
+        self.font_family = font_family
+        self.font_size = font_size
 
 class Img(object):
     def __init__(self, x, y, scalingFactor, image):
@@ -53,3 +53,9 @@ class CSSClass(object):
 
     def __hash__(self):
         return hash(self.getImportantAttributes())
+
+class Button(object):
+    def __init__(self, x, y, height):
+        self.x = x
+        self.y = y
+        self.height = height
