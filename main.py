@@ -1,11 +1,10 @@
 # TODO
-# • polish moving while selected
-# • fix image + text hitboxes
-# • add relative positioning
-# • add error messages
-# • add cursor
-# • add scaling of images and divs
-# • convert "buttons" to tkinter buttons
+# 1. create button class and refactor (with icons)
+# 3. add relative positioning (divs have children)
+# 4. add error messages
+# 5. add cursor
+# 6. direct text entry onto canvas
+# 7. store large size images and rescale completely when mouse released
 
 ############################################################
 # Citations:
@@ -14,7 +13,11 @@
 # Graphics package provided by CMU's 15-112, which mainly uses
 # TKinter and PIL.
 #   link: https://www.cs.cmu.edu/~112/notes/cmu_112_graphics.py
+# Icons used are designed by user "Kiranshastry" and are from Flaticon.com. 
+# Name of the pack where the icons are from is "Alignment and Tools Icon Pack." 
+#   link: https://www.flaticon.com/packs/alignment-and-tools
 ############################################################
+
 from modules.cmu_112_graphics import *
 from exporter import *
 from tkinter import *
@@ -45,6 +48,7 @@ class MyApp(App):
         self.selectedObjs = []
         self.moves = []
         self.nextMoves = []
+        self.resizing = False
 
     def keyPressed(self, event):
         if event.key == "c":
@@ -100,26 +104,48 @@ class MyApp(App):
             for move in nextMove[1:]:
                 move[0].x = move[2][0]
                 move[0].y = move[2][1]
-        
+    
+    def detectResizeClick(self, x, y):
+        obj = self.selectedObjs[0]
+        if type(obj) == Img:
+            return ((obj.x+obj.width/2-5 < x and obj.x+obj.width/2+5 > x) and (obj.y+obj.height/2-5 < y and obj.y+obj.height/2+5 > y))
+        else:
+            return ((obj.x+obj.width-5 < x and obj.x+obj.width+5 > x) and (obj.y+obj.height-5 < y and obj.y+obj.height+5 > y))
+
 
     def findClickedObject(self, x, y):
-        for obj in self.objects:
-            if (((obj.x < x and (obj.x + obj.width) > x) or
-                (obj.x > x and (obj.x + obj.width) < x)) and
-                ((obj.y < y and (obj.y + obj.height) > y) or
-                (obj.y > y and (obj.y + obj.height) < y))):
-                if self.shiftHeld:
-                    self.selectedObjs.append(obj)
-                    break
-                else:
-                    self.selectedObjs = [obj]
-        self.startItemXs = []
-        self.startItemYs = []
-        self.startX = x
-        self.startY = y
-        for obj in self.selectedObjs:
-            self.startItemXs.append(obj.x)
-            self.startItemYs.append(obj.y)
+        if len(self.selectedObjs) == 1 and type(self.selectedObjs[0]) != Text and self.detectResizeClick(x, y):
+            self.resizing = True
+            self.startX = x
+            self.startY = y
+        else:
+            for obj in self.objects:
+                if (((obj.x < x and (obj.x + obj.width) > x) or
+                    (obj.x > x and (obj.x + obj.width) < x)) and
+                    ((obj.y < y and (obj.y + obj.height) > y) or
+                    (obj.y > y and (obj.y + obj.height) < y))
+                    and type(obj) != Img):
+                    if self.shiftHeld:
+                        self.selectedObjs.append(obj)
+                        break
+                    else:
+                        self.selectedObjs = [obj]
+                elif (type(obj) == Img and 
+                    (obj.y + obj.height/2 > y and obj.y - obj.height/2 < y) and
+                    (obj.x + obj.width/2 > x and obj.x - obj.width/2 < x)):
+                    if self.shiftHeld:
+                        self.selectedObjs.append(obj)
+                        break
+                    else:
+                        self.selectedObjs = [obj]
+
+            self.startItemXs = []
+            self.startItemYs = []
+            self.startX = x
+            self.startY = y
+            for obj in self.selectedObjs:
+                self.startItemXs.append(obj.x)
+                self.startItemYs.append(obj.y)
 
     def findSelectedTool(self, x, y):
         if y <= 30 and y >= 0:
@@ -153,6 +179,8 @@ class MyApp(App):
         elif x >= self.width - 400 and x <= self.width - 350 and len(self.selectedObjs) == 1:
             newText = self.getUserInput("New text?")
             self.selectedObjs[0].content = newText
+            self.selectedObjs[0].height = (newText.count("\n")+1)* self.selectedObjs[0].font_size/2
+            self.selectedObjs[0].width = len(newText) * self.selectedObjs[0].font_size
 
     def updateSelected(self):
         for obj in self.selectedObjs:
@@ -222,6 +250,7 @@ class MyApp(App):
         self.selectedObjs = []
         self.startItemXs = []
         self.startItemYs = []
+        self.resizing = True
 
     def deleteSelectedObject(self):
         for obj in self.selectedObjs:
@@ -238,6 +267,7 @@ class MyApp(App):
             # move.append((obj, (self.startItemXs[i], self.startItemYs[i]), (obj.x, obj.y)))
         # if len(self.moves) == 0 or self.moves[-1] != move:
         #     self.moves.append(move)
+
     def selectedHasText(self):
         for obj in self.selectedObjs:
             if type(obj) != Text:
@@ -258,7 +288,9 @@ class MyApp(App):
             self.curDiv = Div(self.startX, self.startY, 0, 0, self.curColor)
         elif self.curTool == 2:
             content = self.getUserInput("Input text")
-            newText = Text(event.x, event.y, 300, 300, content, self.curColor, self.curFont, self.curFontSize)
+            textHeight = self.curFontSize * (content.count("\n")+1)
+            textWidth = self.curFontSize / 2 * len(content)
+            newText = Text(event.x, event.y, textWidth, textHeight, content, self.curColor, self.curFont, self.curFontSize)
             self.objects.append(newText)
             self.moves.append(("add", newText))
         elif self.curTool == 3:
@@ -276,8 +308,38 @@ class MyApp(App):
                 except:
                     print(f"Path not valid: {imagePath}")
 
+    def resizeSelection(self, x, y):
+        obj = self.selectedObjs[0]
+        if type(obj) != Img:
+            width = x - self.startX
+            height = y - self.startY 
+            obj.width +=  width
+            obj.height += height
+            self.startX = x
+            self.startY = y
+        else:
+            width, height = obj.image.size
+            dx = x - self.startX
+            dy = y - self.startY
+            oldFormat = obj.image.format
+            if max(width, height) == height and (height-dy) > 0:
+                obj.image = self.scaleImage(obj.image, (obj.height+dy)/(obj.height))
+                obj.width = (obj.height+dy)/(obj.height)*width
+                obj.height += dy
+            elif max(width, height) == width and (width-dx) > 0:
+                obj.image = self.scaleImage(obj.image, (obj.width+dx)/(obj.width))
+                obj.height = (obj.width+dx)/(obj.width)*height
+                obj.width += dx
+            obj.image.format = oldFormat
+            self.startX = x
+            self.startY = y
+
+
+
     def mouseDragged(self, event):
-        if self.curTool == 0 and len(self.selectedObjs) != 0:
+        if self.curTool == 0 and self.resizing and len(self.selectedObjs) != 0:
+            self.resizeSelection(event.x, event.y)
+        elif self.curTool == 0 and len(self.selectedObjs) != 0:
             self.moveSelectedObjects(event.x, event.y)
         elif self.curTool == 1 and self.curDiv != None:
             width = event.x - self.startX
@@ -286,7 +348,9 @@ class MyApp(App):
             self.curDiv.width = width
 
     def mouseReleased(self, event):
-        if self.curTool == 0 and len(self.selectedObjs) != 0:
+        if self.curTool == 0 and self.resizing:
+            self.resizing = False
+        elif self.curTool == 0 and len(self.selectedObjs) != 0:
             move = ["move"]
             for i in range(len(self.selectedObjs)):
                 obj = self.selectedObjs[i]
@@ -352,7 +416,15 @@ class MyApp(App):
             y = obj.y
             height = obj.height
             width = obj.width
-            canvas.create_rectangle(x, y, x+width, y+height, outline="red", width=5)
+            if type(obj) == Img:
+                canvas.create_rectangle(x-width/2, y-height/2, x+width/2, y+height/2, outline="red", width=5)
+                if len(self.selectedObjs) == 1:
+                    canvas.create_rectangle(x+width/2-5, y+height/2-5, x+width/2+5, y+height/2+5, fill="black")
+            else:
+                canvas.create_rectangle(x, y, x+width, y+height, outline="red", width=5)
+                if len(self.selectedObjs) == 1:
+                    canvas.create_rectangle(x+width-5, y+height-5, x+width+5, y+height+5, fill="black")
+
 
     def drawBackground(self, canvas):
         if self.bgColor != None:
