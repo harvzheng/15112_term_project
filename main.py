@@ -1,10 +1,9 @@
 # TODO
-# 1. create button class and refactor (with icons)
+# 1.a. refactor for toolbar
 # 3. add relative positioning (divs have children)
 # 4. add error messages
 # 5. add cursor
 # 6. direct text entry onto canvas
-# 7. store large size images and rescale completely when mouse released
 
 ############################################################
 # Citations:
@@ -27,9 +26,28 @@ from PIL import Image
 import os
 
 class MyApp(App):
+
+    def setAlignButtons(self):
+        self.aligns = {0: "left", 1: "center hori", 2: "right", 3: "top", 4: "center vert", 5: "bottom"}
+        self.alignButtons = []
+        x0 = 100
+        buttonWidth = 32
+        buttonHeight = 32
+        margin = 50
+
+        for align in self.aligns:
+            url = f'assets/aligns/{align}.png'
+            icon = self.loadImage(url)
+            button = Button(x0, 0,buttonWidth, buttonHeight, icon, self.aligns[align], align)
+            self.alignButtons.append(button)
+            x0 += buttonWidth + margin
+
+    def setToolButtons(self):
+        pass
+
     def appStarted(self):
         self.toolsDict = {0: "cursor", 1: "rectangle", 2: "text", 3: "image"}
-        self.aligns = {0: "left", 1: "center\nhori", 2: "right", 3: "top", 4: "center\nvert", 5: "bottom"}
+        self.setAlignButtons()
         self.curTool = 0
         self.toolBarMargin = 50
         self.alignBarMargin = 50
@@ -64,15 +82,15 @@ class MyApp(App):
         elif event.key == "Delete" and self.selectedObj != None:
             self.deleteSelectedObject()
         elif event.key == "s":
-            self.shiftHeld = True
+            self.shiftHeld = not self.shiftHeld
         elif event.key == "Z":
             self.undo()
         elif event.key == "Y":
             self.redo()
     
-    def keyReleased(self, event):
-        if event.key == "s":
-            self.shiftHeld = False
+    # def keyReleased(self, event):
+    #     if event.key == "s":
+    #         self.shiftHeld = False
 
     def undo(self):
         if len(self.moves) == 0:
@@ -138,7 +156,6 @@ class MyApp(App):
                         break
                     else:
                         self.selectedObjs = [obj]
-
             self.startItemXs = []
             self.startItemYs = []
             self.startX = x
@@ -162,12 +179,9 @@ class MyApp(App):
             initialY += 50
 
     def findSelectedAlign(self, x, y):
-        x0 = self.toolBarMargin * 2
-        for align in self.aligns:
-            if x >= x0 and x <= x0+50:
-                self.alignSelectedObjects(align)
-                break
-            x0 += 60
+        for button in self.alignButtons:
+            if button.didHitButton(x, y):
+                self.alignSelectedObjects(button.functionName)
         if x <= self.width and x >= self.width - 100:
             self.exportCanvas()
         elif x >= self.width - 200 and x <= self.width - 150:
@@ -264,7 +278,7 @@ class MyApp(App):
             obj = self.selectedObjs[i]
             obj.x = self.startItemXs[i] + x - self.startX
             obj.y = self.startItemYs[i] + y - self.startY
-            # move.append((obj, (self.startItemXs[i], self.startItemYs[i]), (obj.x, obj.y)))
+        #     move.append((obj, (self.startItemXs[i], self.startItemYs[i]), (obj.x, obj.y)))
         # if len(self.moves) == 0 or self.moves[-1] != move:
         #     self.moves.append(move)
 
@@ -278,7 +292,7 @@ class MyApp(App):
         if event.x < self.toolBarMargin and event.x > 0:
             self.findSelectedTool(event.x, event.y)
         elif ((event.x > self.toolBarMargin and event.x <= self.width) and
-                (event.y > 0 and event.y < 50)):
+                (event.y > 0 and event.y < self.alignBarMargin)):
             self.findSelectedAlign(event.x, event.y)
         elif self.curTool == 0:
             self.findClickedObject(event.x, event.y)
@@ -302,7 +316,7 @@ class MyApp(App):
                     imgWidth, imgHeight = image.size
                     newImage = self.scaleImage(image, 500/(max(imgWidth, imgHeight)))
                     newImage.format = image.format
-                    newImg = Img(event.x, event.y, 500/(max(imgWidth, imgHeight)), newImage)
+                    newImg = Img(event.x, event.y, 500/(max(imgWidth, imgHeight)), newImage, image)
                     self.objects.append(newImg)
                     self.moves.append(("add", newImg))
                 except:
@@ -334,12 +348,10 @@ class MyApp(App):
             self.startX = x
             self.startY = y
 
-
-
     def mouseDragged(self, event):
         if self.curTool == 0 and self.resizing and len(self.selectedObjs) != 0:
             self.resizeSelection(event.x, event.y)
-        elif self.curTool == 0 and len(self.selectedObjs) != 0:
+        elif self.curTool == 0 and len(self.selectedObjs) != 0 and event.y > self.alignBarMargin:
             self.moveSelectedObjects(event.x, event.y)
         elif self.curTool == 1 and self.curDiv != None:
             width = event.x - self.startX
@@ -350,6 +362,10 @@ class MyApp(App):
     def mouseReleased(self, event):
         if self.curTool == 0 and self.resizing:
             self.resizing = False
+            if len(self.selectedObjs) > 0 and type(self.selectedObjs[0]) == Img:
+                obj = self.selectedObjs[0]
+                scaleFactor = max(obj.image.size)/max(obj.fullSize.size)
+                obj.image = self.scaleImage(obj.fullSize, scaleFactor)
         elif self.curTool == 0 and len(self.selectedObjs) != 0:
             move = ["move"]
             for i in range(len(self.selectedObjs)):
@@ -391,14 +407,15 @@ class MyApp(App):
             canvas.create_text(self.toolBarMargin/2, newY + 35, text=self.toolsDict[key], anchor="center")
             newY += 50
 
+    def drawButton(self, canvas, button):
+        canvas.create_rectangle(button.x, button.y, button.x+button.width, button.y+button.height)
+        canvas.create_image(button.x+button.width/2, button.y+button.height/2, image=ImageTk.PhotoImage(button.image))
+        canvas.create_text(button.x+button.width/2, button.y+button.height, text=button.label, anchor="n")
 
     def drawAlignBar(self, canvas):
         canvas.create_rectangle(self.toolBarMargin, 0, self.width, 50, fill="grey", width=0)
-        x0 = self.toolBarMargin * 2
-        for align in self.aligns:
-            canvas.create_rectangle(x0, 0, x0+50, 50)
-            canvas.create_text(x0, 0, text=self.aligns[align], anchor="nw")
-            x0 += 60
+        for button in self.alignButtons:
+            self.drawButton(canvas, button)
         canvas.create_rectangle(self.width, 0, self.width-100, 50, fill="navy", width=0)
         canvas.create_text(self.width-50, 25, text="Export", anchor="center", fill="white", font="Helvetica 28" )
         if self.curTool == 2 or (self.curTool == 0 and self.selectedHasText()):

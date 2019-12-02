@@ -19,7 +19,7 @@ class Text(object):
         self.font_size = font_size
 
 class Img(object):
-    def __init__(self, x, y, scalingFactor, image):
+    def __init__(self, x, y, scalingFactor, image, fullSize):
         self.x = x
         self.y = y
         self.scalingFactor = scalingFactor
@@ -27,6 +27,7 @@ class Img(object):
         self.height = height
         self.width = width
         self.image = image
+        self.fullSize = fullSize
 
 class CSSClass(object):
     pastClasses = set()
@@ -55,7 +56,18 @@ class CSSClass(object):
         return hash(self.getImportantAttributes())
 
 class Button(object):
-    def __init__(self, x, y, height):
+    def __init__(self, x, y, width, height, image, label, functionName):
         self.x = x
         self.y = y
         self.height = height
+        self.width = width
+        self.image = image
+        self.label = label
+        self.functionName = functionName
+    
+    def didHitButton(self, x, y):
+        if ((x < self.x + self.width and x > self.x) and
+            (y < self.y + self.height and y > self.y)):
+            return True
+        else:
+            return False
