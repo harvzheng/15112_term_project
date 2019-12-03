@@ -79,3 +79,7 @@ class TextButton(Button):
         super().__init__(x, y, width, height, None, label2, functionName, fill, textColor)
         self.label1 = label1
         self.textSize = textSize
+
+class ColorPalette(Button):
+    def __init__(self, x, y, width, height, label, functionName, fill="white"):
+        super().__init__(x, y, width, height, None, label, functionName, fill)

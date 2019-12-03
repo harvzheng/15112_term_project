@@ -1,5 +1,4 @@
 # TODO
-# 1.a. refactor for toolbar
 # 3. add relative positioning (divs have children)
 # 4. add error messages
 # 6. direct text entry onto canvas
@@ -85,18 +84,30 @@ class MyApp(App):
             button = Button(0, newY, self.toolBarMargin, toolButtonHeight, icon, self.toolsDict[key], key)
             self.toolsBar.append(button)
             newY += 50
+        colorPalette = ColorPalette(0, 0, self.toolBarMargin, self.toolBarMargin, "Set\nColor", "colorPicker", self.curColor)
+        self.toolsBar.append(colorPalette)
 
     def initTextProps(self):
         self.curFont = "Helvetica"
         self.curFontSize = 14
 
+    # help from https://stackoverflow.com/questions/3142054/python-add-items-from-txt-file-into-a-list
+    # and list of fonts with help from: 
+    # https://stackoverflow.com/questions/39614027/list-available-font-families-in-tkinter
+    def addTkinterFonts(self):
+        with open('assets/tkinter_fonts.txt', 'r') as f:
+            self.tkinterFonts = set([line.strip().lower() for line in f])
+
     def appStarted(self):
         self.toolBarMargin = 50
         self.alignBarMargin = 50
+        self.curColor = "red"
         self.initTextProps()
 
         self.setToolButtons()
         self.setAlignButtons()
+
+        self.addTkinterFonts()
 
         self.curTool = 0
         self.objects = []
@@ -106,7 +117,6 @@ class MyApp(App):
         self.startItemYs = []
         self.curDiv = None
         self.selectedObj = []
-        self.curColor = "black"
         self.bgColor = "white"
         self.shiftHeld = False
         self.selectedObjs = []
@@ -142,10 +152,6 @@ class MyApp(App):
             self.undo()
         elif event.key == "Y":
             self.redo()
-    
-    # def keyReleased(self, event):
-    #     if event.key == "s":
-    #         self.shiftHeld = False
 
     def undo(self):
         if len(self.moves) == 0:
@@ -221,20 +227,17 @@ class MyApp(App):
                 self.startItemYs.append(obj.y)
 
     def findSelectedTool(self, x, y):
-        if y <= 30 and y >= 0:
-            newColor = colorchooser.askcolor(initialcolor=self.curColor)
-            if newColor != (None, None):
-                self.curColor = newColor[-1]
-
         for button in self.toolsBar:
             if (button.didHitButton(x, y)):
                 if type(button.functionName) == int:
                     self.curTool = button.functionName
-                
-        # for key in self.toolsDict:
-        #     if (y >= initialY and y <= (initialY + 30)):
-        #         self.curTool = key
-        #     initialY += 50
+                elif button.functionName == "colorPicker":
+                    self.pickNewColor()
+
+    def pickNewColor(self):
+        newColor = colorchooser.askcolor(initialcolor=self.curColor)
+        if newColor != (None, None):
+            self.curColor = newColor[-1]
 
     def findSelectedAlign(self, x, y):
         for button in self.alignBarButtons:
@@ -247,14 +250,23 @@ class MyApp(App):
             if button.didHitButton(x, y):
                 self.handleTextButtonPress(button.functionName)
                 
+    def updateFontFamily(self):
+        newFont = self.getUserInput("What should the new font be?")
+        if newFont.lower()  in self.tkinterFonts:
+            self.curFont = newFont
+
+    def updateFontSize(self):
+        newFontSize = self.getUserInput("What should the new font size be?")
+        if newFontSize > 0 and type(newFontSize) == int:
+            self.curFontSize = newFontSize
 
 
     def handleTextButtonPress(self, functionName):
         if functionName == "fontFamily":
-            self.curFont = self.getUserInput("Font family?")
+            self.updateFontFamily()
             self.updateSelected()
         elif functionName == "fontSize":
-            self.curFontSize = self.getUserInput("Font size?")
+            self.updateFontSize()
             self.updateSelected()
         elif functionName == "editText":
             newText = self.getUserInput("New text?")
@@ -472,6 +484,9 @@ class MyApp(App):
         canvas.create_rectangle(button.x, button.y, button.x+button.width, button.y+button.height, fill=button.fill)
         if button.image != None:
             canvas.create_image(button.x+button.width/2, button.y+button.height/2, image=ImageTk.PhotoImage(button.image))
+            canvas.create_text(button.x+button.width/2, button.y+button.height, text=button.label, anchor="n")
+        elif type(button) == ColorPalette:
+            canvas.create_rectangle(button.x, button.y, button.x+button.width, button.y+button.height, fill=button.fill)
             canvas.create_text(button.x+button.width/2, button.y+button.height, text=button.label, anchor="n")
         else:
             canvas.create_text(button.x+button.width/2, button.y+button.height/2, text=button.label, font="Helvetica 28", anchor="center", fill=button.textColor)
