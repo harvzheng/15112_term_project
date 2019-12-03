@@ -22,10 +22,10 @@ from tkinter import *
 from tkinter import colorchooser
 from classes import *
 from PIL import Image
+import _pickle as pickle
 import os
 
 class MyApp(App):
-
     def setAlignButtons(self):
         self.aligns = {0: "left", 1: "center hori", 2: "right", 3: "top", 4: "center vert", 5: "bottom"}
         self.alignBarButtons = []
@@ -40,20 +40,24 @@ class MyApp(App):
             button = Button(x0, 0,buttonWidth, buttonHeight, icon, self.aligns[align], align)
             self.alignBarButtons.append(button)
             x0 += buttonWidth + margin
-        self.setExportButton()
+        self.setExportButtons()
         self.setTextButtons()
 
-    def setExportButton(self):
-        buttonWidth = 100
-        button = Button(self.width-100, 0, buttonWidth, self.alignBarMargin, None, "Export", "exportCanvas", fill="navy", textColor="white")
-        self.alignBarButtons.append(button)
+    def setExportButtons(self):
+        buttonWidth = 130
+        button1 = Button(self.width-buttonWidth, 0, buttonWidth, self.alignBarMargin, None, "Export HTML", "exportCanvas", fill="navy", textColor="white")
+        button2 = Button(self.width-buttonWidth*2, 0, buttonWidth, self.alignBarMargin, None, "Save Canvas", "saveCanvas", fill="navy", textColor="white")
+        button3 = Button(self.width-buttonWidth*3, 0, buttonWidth, self.alignBarMargin, None, "Import Canvas", "importCanvas", fill="navy", textColor="white")
+        self.alignBarButtons.append(button1)
+        self.alignBarButtons.append(button2)
+        self.alignBarButtons.append(button3)
 
     def setTextButtons(self):
         width = 100
         textToolsLabels = ["Edit Text", "Font Size", "Font"]
         textToolFunctions = ["editText", "fontSize", "fontFamily"]
         self.textToolButtons = []
-        x0 = 700
+        x0 = 600
         i=0
         for tool in textToolsLabels:
             if tool == "Edit Text":
@@ -239,6 +243,15 @@ class MyApp(App):
         if newColor != (None, None):
             self.curColor = newColor[-1]
 
+    def saveCanvas(self):
+        f = open("canvas.obj", "wb")
+        pickle.dump(self.objects, f)
+
+    def importCanvas(self):
+        if os.path.isfile("canvas.obj"):
+            f = open("canvas.obj", "rb")
+            self.objects = pickle.load(f)
+
     def findSelectedAlign(self, x, y):
         for button in self.alignBarButtons:
             if button.didHitButton(x, y):
@@ -246,6 +259,10 @@ class MyApp(App):
                     self.alignSelectedObjects(button.functionName)
                 elif button.functionName == "exportCanvas":
                     self.exportCanvas()
+                elif button.functionName == "saveCanvas":
+                    self.saveCanvas()
+                elif button.functionName == "importCanvas":
+                    self.importCanvas()
         for button in self.textToolButtons:
             if button.didHitButton(x, y):
                 self.handleTextButtonPress(button.functionName)
@@ -489,7 +506,7 @@ class MyApp(App):
             canvas.create_rectangle(button.x, button.y, button.x+button.width, button.y+button.height, fill=button.fill)
             canvas.create_text(button.x+button.width/2, button.y+button.height, text=button.label, anchor="n")
         else:
-            canvas.create_text(button.x+button.width/2, button.y+button.height/2, text=button.label, font="Helvetica 28", anchor="center", fill=button.textColor)
+            canvas.create_text(button.x+button.width/2, button.y+button.height/2, text=button.label, font="Helvetica 20", anchor="center", fill=button.textColor)
 
     def drawTextButton(self, canvas, button):
         canvas.create_rectangle(button.x, button.y, button.x+button.width, button.y+button.height-button.textSize, fill=button.fill)
