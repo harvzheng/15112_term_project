@@ -1,7 +1,6 @@
 # TODO
 # debug
 # text associated with shape (relative positioning/child stuff!)
-# write/read file for large number of undo/redo
 # fix undo/redo
 
 ############################################################
@@ -102,6 +101,8 @@ class MyApp(App):
         self.toolsBar.append(colorPalette)
         makeRelativeBtn = Button(0, 600, 50, 50, None, "Make Relative", "makeRelative")
         self.toolsBar.append(makeRelativeBtn)
+        makeAbsoluteBtn = Button(0, 675, 50, 50, None, "Make Absolute", "makeAbsolute")
+        self.toolsBar.append(makeAbsoluteBtn)
 
     def initTextProps(self):
         self.curFont = "Helvetica"
@@ -261,6 +262,16 @@ class MyApp(App):
                     self.pickNewColor()
                 elif button.functionName == "makeRelative":
                     self.makeComponentRelative()
+                elif button.functionName == "makeAbsolute":
+                    self.makeComponentAbsolute()
+
+    def makeComponentAbsolute(self):
+        if len(self.selectedObjs) == 1:
+            if self.selectedObjs[0] in self.childObjects:
+                childObj = self.selectedObjs[0]
+                childObj.parentObject.childObjects.remove(childObj)    
+                self.objects.add(childObj)
+            self.selectedObjs[0].relative = False
 
     def makeComponentRelative(self):
         if len(self.selectedObjs) == 1:
@@ -280,6 +291,8 @@ class MyApp(App):
                 self.displayError("Not valid objects. The child object should be fully encased in the parent.")
                 return
             parentObj.childObjects.append(childObj)
+            childObj.parentObject = parentObj
+            childObj.relative = True
             self.childObjects.append(childObj)
             self.objects.remove(childObj)
 
@@ -546,31 +559,32 @@ class MyApp(App):
 
     def resizeSelection(self, x, y):
         obj = self.selectedObjs[0]
-        if type(obj) != Img:
-            dx = x - self.startX
-            dy = y - self.startY 
-            obj.width +=  dx
-            obj.height += dy
-            if obj.childObjects != []:
-                self.resizeChildren(obj, dx, dy)
-            self.startX = x
-            self.startY = y
-        else:
-            width, height = obj.image.size
-            dx = x - self.startX
-            dy = y - self.startY
-            oldFormat = obj.image.format
-            if max(width, height) == height and (height+dy) > 5:
-                obj.image = self.scaleImage(obj.image, (obj.height+dy)/(obj.height))
-                obj.width = (obj.height+dy)/(obj.height)*width
+        if not obj.relative:
+            if type(obj) != Img:
+                dx = x - self.startX
+                dy = y - self.startY 
+                obj.width +=  dx
                 obj.height += dy
-            elif max(width, height) == width and (width+dx) > 5:
-                obj.image = self.scaleImage(obj.image, (obj.width+dx)/(obj.width))
-                obj.height = (obj.width+dx)/(obj.width)*height
-                obj.width += dx
-            obj.image.format = oldFormat
-            self.startX = x
-            self.startY = y
+                if obj.childObjects != []:
+                    self.resizeChildren(obj, dx, dy)
+                self.startX = x
+                self.startY = y
+            else:
+                width, height = obj.image.size
+                dx = x - self.startX
+                dy = y - self.startY
+                oldFormat = obj.image.format
+                if max(width, height) == height and (height+dy) > 5:
+                    obj.image = self.scaleImage(obj.image, (obj.height+dy)/(obj.height))
+                    obj.width = (obj.height+dy)/(obj.height)*width
+                    obj.height += dy
+                elif max(width, height) == width and (width+dx) > 5:
+                    obj.image = self.scaleImage(obj.image, (obj.width+dx)/(obj.width))
+                    obj.height = (obj.width+dx)/(obj.width)*height
+                    obj.width += dx
+                obj.image.format = oldFormat
+                self.startX = x
+                self.startY = y
 
     def mouseDragged(self, event):
         if self.curTool == 0 and self.resizing and len(self.selectedObjs) != 0:
@@ -679,7 +693,7 @@ class MyApp(App):
                     canvas.create_rectangle(x+width/2-5, y+height/2-5, x+width/2+5, y+height/2+5, fill="black")
             else:
                 canvas.create_rectangle(x, y, x+width, y+height, outline="red", width=5)
-                if len(self.selectedObjs) == 1:
+                if len(self.selectedObjs) == 1 and not self.selectedObjs[0].relative:
                     canvas.create_rectangle(x+width-5, y+height-5, x+width+5, y+height+5, fill="black")
 
 
