@@ -203,10 +203,11 @@ class MyApp(App):
     
     def detectResizeClick(self, x, y):
         obj = self.selectedObjs[0]
-        if type(obj) == Img:
-            return ((obj.x+obj.width/2-5 < x and obj.x+obj.width/2+5 > x) and (obj.y+obj.height/2-5 < y and obj.y+obj.height/2+5 > y))
-        else:
-            return ((obj.x+obj.width-5 < x and obj.x+obj.width+5 > x) and (obj.y+obj.height-5 < y and obj.y+obj.height+5 > y))
+        if type(obj) != Text:
+            if type(obj) == Img:
+                return ((obj.x+obj.width/2-5 < x and obj.x+obj.width/2+5 > x) and (obj.y+obj.height/2-5 < y and obj.y+obj.height/2+5 > y))
+            else:
+                return ((obj.x+obj.width-5 < x and obj.x+obj.width+5 > x) and (obj.y+obj.height-5 < y and obj.y+obj.height+5 > y))
 
     def checkObjectBounds(self, obj, x, y):
         return (((obj.x < x and (obj.x + obj.width) > x) or
@@ -214,27 +215,35 @@ class MyApp(App):
                     ((obj.y < y and (obj.y + obj.height) > y) or
                     (obj.y > y and (obj.y + obj.height) < y)))
 
+    def addClickedObjects(self, obj, x, y):
+        if self.checkObjectBounds(obj, x, y) and type(obj) != Img:
+            if self.shiftHeld:
+                self.selectedObjs.append(obj)
+                return True
+            else:
+                self.selectedObjs = [obj]
+                return True
+        elif (type(obj) == Img and 
+            (obj.y + obj.height/2 > y and obj.y - obj.height/2 < y) and
+            (obj.x + obj.width/2 > x and obj.x - obj.width/2 < x)):
+            if self.shiftHeld:
+                self.selectedObjs.append(obj)
+                return True
+            else:
+                self.selectedObjs = [obj]
+                return True
+
     def findClickedObject(self, x, y):
         if len(self.selectedObjs) == 1 and type(self.selectedObjs[0]) != Text and self.detectResizeClick(x, y):
             self.resizing = True
             self.startX = x
             self.startY = y
         else:
-            for obj in self.objects:
-                if self.checkObjectBounds(obj, x, y) and type(obj) != Img:
-                    if self.shiftHeld and obj not in self.selectedObjs:
-                        self.selectedObjs.append(obj)
-                        break
-                    else:
-                        self.selectedObjs = [obj]
-                elif (type(obj) == Img and 
-                    (obj.y + obj.height/2 > y and obj.y - obj.height/2 < y) and
-                    (obj.x + obj.width/2 > x and obj.x - obj.width/2 < x)):
-                    if self.shiftHeld:
-                        self.selectedObjs.append(obj)
-                        break
-                    else:
-                        self.selectedObjs = [obj]
+            reversedObjects = list(reversed(self.objects))
+            allObjects =  self.childObjects + reversedObjects
+            for obj in allObjects:
+                if self.addClickedObjects(obj, x, y):
+                    break
             self.startItemXs = []
             self.startItemYs = []
             self.startX = x
@@ -250,8 +259,8 @@ class MyApp(App):
                     self.curTool = button.functionName
                 elif button.functionName == "colorPicker":
                     self.pickNewColor()
-                # elif button.functionName == "makeRelative":
-                #     self.makeComponentRelative()
+                elif button.functionName == "makeRelative":
+                    self.makeComponentRelative()
 
     def makeComponentRelative(self):
         if len(self.selectedObjs) == 1:
@@ -259,7 +268,6 @@ class MyApp(App):
         elif len(self.selectedObjs) == 2 and self.selectedHasDiv():
             obj1 = self.selectedObjs[0]
             obj2 = self.selectedObjs[1]
-            print(f"obj1: ({obj1.x}, {obj1.y}); heigh")
             if ((obj2.x < obj1.x and obj2.y < obj1.y) and 
                 (obj1.width < obj2.width and obj1.height < obj2.height) and 
                 type(obj2) == Div):
@@ -449,11 +457,25 @@ class MyApp(App):
             self.objects.remove(obj)
             self.clearSelection()
 
+    def moveChildren(self, obj, dx, dy):
+        if obj.childObjects == []:
+            obj.x += dx
+            obj.y += dy
+        else:
+            for child in obj.childObjects:
+                self.moveChildren(child, dx, dy)
+
     def moveSelectedObjects(self, x, y):
+        dx = x - self.startX
+        dy = y - self.startY
         for i in range(len(self.selectedObjs)):
             obj = self.selectedObjs[i]
-            obj.x = self.startItemXs[i] + x - self.startX
-            obj.y = self.startItemYs[i] + y - self.startY
+            obj.x += dx
+            obj.y += dy
+            if obj.childObjects != []:
+                self.moveChildren(obj, dx, dy)
+        self.startX = x
+        self.startY = y
 
     def selectedHasText(self):
         for obj in self.selectedObjs:
@@ -467,13 +489,20 @@ class MyApp(App):
                 return False
         return True
 
+    def selectedObjectClicked(self, x, y):
+        for obj in self.selectedObjs:
+            if ((obj.x < x and obj.y < y) and
+                (obj.x + obj.width > x and obj.y + obj.height > y)):
+                return True
+        return False
+
     def mousePressed(self, event):
         if event.x < self.toolBarMargin and event.x > 0:
             self.findSelectedTool(event.x, event.y)
         elif ((event.x > self.toolBarMargin and event.x <= self.width) and
                 (event.y > 0 and event.y < self.alignBarMargin)):
             self.findSelectedAlign(event.x, event.y)
-        elif self.curTool == 0:
+        elif self.curTool == 0 and not self.selectedObjectClicked(event.x, event.y):
             self.findClickedObject(event.x, event.y)
         elif self.curTool == 1:
             self.startX = event.x
@@ -506,13 +535,24 @@ class MyApp(App):
                 self.objects.append(newImg)
                 self.moves.append(("add", newImg))
 
+    # add initial item dimensions of selected objects; if a violation occurs, reset to initial dimensions
+    def resizeChildren(self, obj, dx, dy):
+        if obj.childObjects == []:
+            obj.width +=  dx
+            obj.height += dy
+        else:
+            for child in obj.childObjects:
+                self.resizeChildren(child, dx, dy)
+
     def resizeSelection(self, x, y):
         obj = self.selectedObjs[0]
         if type(obj) != Img:
-            width = x - self.startX
-            height = y - self.startY 
-            obj.width +=  width
-            obj.height += height
+            dx = x - self.startX
+            dy = y - self.startY 
+            obj.width +=  dx
+            obj.height += dy
+            if obj.childObjects != []:
+                self.resizeChildren(obj, dx, dy)
             self.startX = x
             self.startY = y
         else:
