@@ -2,8 +2,8 @@
 # 1.a. refactor for toolbar
 # 3. add relative positioning (divs have children)
 # 4. add error messages
-# 5. add cursor
 # 6. direct text entry onto canvas
+# fix undo/redo
 
 ############################################################
 # Citations:
@@ -29,7 +29,7 @@ class MyApp(App):
 
     def setAlignButtons(self):
         self.aligns = {0: "left", 1: "center hori", 2: "right", 3: "top", 4: "center vert", 5: "bottom"}
-        self.alignButtons = []
+        self.alignBarButtons = []
         x0 = 100
         buttonWidth = 32
         buttonHeight = 32
@@ -39,18 +39,66 @@ class MyApp(App):
             url = f'assets/aligns/{align}.png'
             icon = self.loadImage(url)
             button = Button(x0, 0,buttonWidth, buttonHeight, icon, self.aligns[align], align)
-            self.alignButtons.append(button)
+            self.alignBarButtons.append(button)
             x0 += buttonWidth + margin
+        self.setExportButton()
+        self.setTextButtons()
+
+    def setExportButton(self):
+        buttonWidth = 100
+        button = Button(self.width-100, 0, buttonWidth, self.alignBarMargin, None, "Export", "exportCanvas", fill="navy", textColor="white")
+        self.alignBarButtons.append(button)
+
+    def setTextButtons(self):
+        width = 100
+        textToolsLabels = ["Edit Text", "Font Size", "Font"]
+        textToolFunctions = ["editText", "fontSize", "fontFamily"]
+        self.textToolButtons = []
+        x0 = 700
+        i=0
+        for tool in textToolsLabels:
+            if tool == "Edit Text":
+                button = TextButton(x0, 0, width, self.alignBarMargin, tool, None, textToolFunctions[i])
+            else:
+                button = TextButton(x0, 0, width, self.alignBarMargin, None, tool, textToolFunctions[i])
+            self.textToolButtons.append(button)
+            x0 += width + self.alignBarMargin
+            i += 1
+        self.setTextButtonsInfo()
+
+    def setTextButtonsInfo(self):
+        self.textToolButtons[1].label1 = self.curFontSize
+        self.textToolButtons[2].label1 = self.curFont
 
     def setToolButtons(self):
-        pass
+        self.toolsDict = {0: "cursor", 1: "rectangle", 2: "text", 3: "image", 4: "fill bg"}
+        self.toolsBar = []
+        self.toolIcons = []
+        newY = 100
+        toolButtonHeight = 32
+        for key in self.toolsDict:
+            url = f'assets/tools/{key}.png'
+            icon = None
+            if os.path.isfile(url):
+                icon = self.loadImage(url)
+                self.toolIcons.append(icon)
+            button = Button(0, newY, self.toolBarMargin, toolButtonHeight, icon, self.toolsDict[key], key)
+            self.toolsBar.append(button)
+            newY += 50
+
+    def initTextProps(self):
+        self.curFont = "Helvetica"
+        self.curFontSize = 14
 
     def appStarted(self):
-        self.toolsDict = {0: "cursor", 1: "rectangle", 2: "text", 3: "image"}
-        self.setAlignButtons()
-        self.curTool = 0
         self.toolBarMargin = 50
         self.alignBarMargin = 50
+        self.initTextProps()
+
+        self.setToolButtons()
+        self.setAlignButtons()
+
+        self.curTool = 0
         self.objects = []
         self.startX = 0
         self.startY = 0
@@ -60,13 +108,20 @@ class MyApp(App):
         self.selectedObj = []
         self.curColor = "black"
         self.bgColor = "white"
-        self.curFont = "Helvetica"
-        self.curFontSize = 14
         self.shiftHeld = False
         self.selectedObjs = []
         self.moves = []
         self.nextMoves = []
         self.resizing = False
+        self.mouseX = 0
+        self.mouseY = 0
+
+    def mouseMoved(self, event):
+        self.updateMouse(event.x, event.y)
+
+    def updateMouse(self, x, y):
+        self.mouseX = x
+        self.mouseY = y
 
     def keyPressed(self, event):
         if event.key == "c":
@@ -130,6 +185,11 @@ class MyApp(App):
         else:
             return ((obj.x+obj.width-5 < x and obj.x+obj.width+5 > x) and (obj.y+obj.height-5 < y and obj.y+obj.height+5 > y))
 
+    def checkObjectBounds(self, obj, x, y):
+        return (((obj.x < x and (obj.x + obj.width) > x) or
+                    (obj.x > x and (obj.x + obj.width) < x)) and
+                    ((obj.y < y and (obj.y + obj.height) > y) or
+                    (obj.y > y and (obj.y + obj.height) < y)))
 
     def findClickedObject(self, x, y):
         if len(self.selectedObjs) == 1 and type(self.selectedObjs[0]) != Text and self.detectResizeClick(x, y):
@@ -138,11 +198,7 @@ class MyApp(App):
             self.startY = y
         else:
             for obj in self.objects:
-                if (((obj.x < x and (obj.x + obj.width) > x) or
-                    (obj.x > x and (obj.x + obj.width) < x)) and
-                    ((obj.y < y and (obj.y + obj.height) > y) or
-                    (obj.y > y and (obj.y + obj.height) < y))
-                    and type(obj) != Img):
+                if self.checkObjectBounds(obj, x, y) and type(obj) != Img:
                     if self.shiftHeld:
                         self.selectedObjs.append(obj)
                         break
@@ -169,28 +225,38 @@ class MyApp(App):
             newColor = colorchooser.askcolor(initialcolor=self.curColor)
             if newColor != (None, None):
                 self.curColor = newColor[-1]
-        elif y > 50 and y < 80:
-            self.moves.append(("change bg", self.bgColor, self.curColor))
-            self.bgColor = self.curColor
-        initialY = 90
-        for key in self.toolsDict:
-            if (y >= initialY and y <= (initialY + 30)):
-                self.curTool = key
-            initialY += 50
+
+        for button in self.toolsBar:
+            if (button.didHitButton(x, y)):
+                if type(button.functionName) == int:
+                    self.curTool = button.functionName
+                
+        # for key in self.toolsDict:
+        #     if (y >= initialY and y <= (initialY + 30)):
+        #         self.curTool = key
+        #     initialY += 50
 
     def findSelectedAlign(self, x, y):
-        for button in self.alignButtons:
+        for button in self.alignBarButtons:
             if button.didHitButton(x, y):
-                self.alignSelectedObjects(button.functionName)
-        if x <= self.width and x >= self.width - 100:
-            self.exportCanvas()
-        elif x >= self.width - 200 and x <= self.width - 150:
+                if type(button.functionName) == int:
+                    self.alignSelectedObjects(button.functionName)
+                elif button.functionName == "exportCanvas":
+                    self.exportCanvas()
+        for button in self.textToolButtons:
+            if button.didHitButton(x, y):
+                self.handleTextButtonPress(button.functionName)
+                
+
+
+    def handleTextButtonPress(self, functionName):
+        if functionName == "fontFamily":
             self.curFont = self.getUserInput("Font family?")
             self.updateSelected()
-        elif x >= self.width - 300 and x <= self.width - 250:
+        elif functionName == "fontSize":
             self.curFontSize = self.getUserInput("Font size?")
             self.updateSelected()
-        elif x >= self.width - 400 and x <= self.width - 350 and len(self.selectedObjs) == 1:
+        elif functionName == "editText":
             newText = self.getUserInput("New text?")
             self.selectedObjs[0].content = newText
             self.selectedObjs[0].height = (newText.count("\n")+1)* self.selectedObjs[0].font_size/2
@@ -200,6 +266,7 @@ class MyApp(App):
         for obj in self.selectedObjs:
             obj.font_family = self.curFont
             obj.font_size = self.curFontSize
+        self.setTextButtonsInfo()
 
     def exportCanvas(self):
         fileName = self.getUserInput("Name of Site?")
@@ -273,14 +340,10 @@ class MyApp(App):
             self.clearSelection()
 
     def moveSelectedObjects(self, x, y):
-        move = ["move"]
         for i in range(len(self.selectedObjs)):
             obj = self.selectedObjs[i]
             obj.x = self.startItemXs[i] + x - self.startX
             obj.y = self.startItemYs[i] + y - self.startY
-        #     move.append((obj, (self.startItemXs[i], self.startItemYs[i]), (obj.x, obj.y)))
-        # if len(self.moves) == 0 or self.moves[-1] != move:
-        #     self.moves.append(move)
 
     def selectedHasText(self):
         for obj in self.selectedObjs:
@@ -321,6 +384,9 @@ class MyApp(App):
                     self.moves.append(("add", newImg))
                 except:
                     print(f"Path not valid: {imagePath}")
+        elif self.curTool == 4:
+            self.moves.append(("change bg", self.bgColor, self.curColor))
+            self.bgColor = self.curColor
 
     def resizeSelection(self, x, y):
         obj = self.selectedObjs[0]
@@ -399,33 +465,36 @@ class MyApp(App):
     def drawToolbar(self, canvas):
         canvas.create_rectangle(0, 0, self.toolBarMargin, self.height, fill="gray", width=0)
         canvas.create_rectangle(1, 10, self.toolBarMargin, 40, fill=self.curColor)
-        canvas.create_rectangle(1, 50, self.toolBarMargin, 80, fill="")
-        canvas.create_text(self.toolBarMargin/2, 80, text="set bg\ncolor", anchor="center")
-        newY = 90
-        for key in self.toolsDict:
-            canvas.create_rectangle(0, newY, self.toolBarMargin, newY + 30)
-            canvas.create_text(self.toolBarMargin/2, newY + 35, text=self.toolsDict[key], anchor="center")
-            newY += 50
+        for button in self.toolsBar:
+            self.drawButton(canvas, button)
 
     def drawButton(self, canvas, button):
-        canvas.create_rectangle(button.x, button.y, button.x+button.width, button.y+button.height)
-        canvas.create_image(button.x+button.width/2, button.y+button.height/2, image=ImageTk.PhotoImage(button.image))
-        canvas.create_text(button.x+button.width/2, button.y+button.height, text=button.label, anchor="n")
+        canvas.create_rectangle(button.x, button.y, button.x+button.width, button.y+button.height, fill=button.fill)
+        if button.image != None:
+            canvas.create_image(button.x+button.width/2, button.y+button.height/2, image=ImageTk.PhotoImage(button.image))
+            canvas.create_text(button.x+button.width/2, button.y+button.height, text=button.label, anchor="n")
+        else:
+            canvas.create_text(button.x+button.width/2, button.y+button.height/2, text=button.label, font="Helvetica 28", anchor="center", fill=button.textColor)
+
+    def drawTextButton(self, canvas, button):
+        canvas.create_rectangle(button.x, button.y, button.x+button.width, button.y+button.height-button.textSize, fill=button.fill)
+        canvas.create_text(button.x+button.width/2, button.y, text=button.label1, anchor="n", fill=button.textColor)
+        canvas.create_text(button.x+button.width/2, button.y+button.height, text=button.label, anchor="s", fill=button.textColor)
 
     def drawAlignBar(self, canvas):
         canvas.create_rectangle(self.toolBarMargin, 0, self.width, 50, fill="grey", width=0)
-        for button in self.alignButtons:
+        for button in self.alignBarButtons:
             self.drawButton(canvas, button)
-        canvas.create_rectangle(self.width, 0, self.width-100, 50, fill="navy", width=0)
-        canvas.create_text(self.width-50, 25, text="Export", anchor="center", fill="white", font="Helvetica 28" )
         if self.curTool == 2 or (self.curTool == 0 and self.selectedHasText()):
             self.drawTextTools(canvas)
     
     def drawTextTools(self, canvas):
-        canvas.create_text(self.width - 150, 15, text=f"font family:\n{self.curFont}", anchor="e")
-        canvas.create_text(self.width - 250, 15, text=f"font size:\n{self.curFontSize}", anchor="e")
-        if len(self.selectedObjs) == 1:
-            canvas.create_text(self.width - 350, 15, text=f"edit text", anchor="e")
+        for button in self.textToolButtons:
+            if button.functionName == "editText":
+                if self.curTool == 0 and len(self.selectedObjs) == 1 and self.selectedHasText():
+                    self.drawTextButton(canvas, button)
+            else:
+                self.drawTextButton(canvas, button)
 
     def drawHighlight(self, canvas):
         for obj in self.selectedObjs:
@@ -447,11 +516,9 @@ class MyApp(App):
         if self.bgColor != None:
             canvas.create_rectangle(0, 0, self.width, self.height, fill=self.bgColor)
     
-    # to be implemented later
-    # will draw current tool on top of cursor
     def drawCursor(self, canvas):
-
-        pass
+        if self.curTool != 0:
+            canvas.create_image(self.mouseX, self.mouseY, image=ImageTk.PhotoImage(self.toolIcons[self.curTool]))
 
     def redrawAll(self, canvas):
         self.drawBackground(canvas)
@@ -459,6 +526,7 @@ class MyApp(App):
         self.drawHighlight(canvas)
         self.drawAlignBar(canvas)
         self.drawToolbar(canvas)
-        canvas.create_text(self.width/2, 60, text=f"current tool: {self.toolsDict[self.curTool]}")
+        self.drawCursor(canvas)
+        canvas.create_text(self.width/2, 60, text=f"shift on?: {self.shiftHeld}")
 
-MyApp(width=1000, height=1000)
+MyApp(width=1500, height=1000)

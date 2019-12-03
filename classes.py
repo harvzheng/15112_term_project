@@ -56,7 +56,7 @@ class CSSClass(object):
         return hash(self.getImportantAttributes())
 
 class Button(object):
-    def __init__(self, x, y, width, height, image, label, functionName):
+    def __init__(self, x, y, width, height, image, label, functionName, fill="white", textColor="black"):
         self.x = x
         self.y = y
         self.height = height
@@ -64,6 +64,8 @@ class Button(object):
         self.image = image
         self.label = label
         self.functionName = functionName
+        self.fill = fill
+        self.textColor = textColor
     
     def didHitButton(self, x, y):
         if ((x < self.x + self.width and x > self.x) and
@@ -71,3 +73,9 @@ class Button(object):
             return True
         else:
             return False
+
+class TextButton(Button):
+    def __init__(self, x, y, width, height, label1, label2, functionName, textSize=14, fill="white", textColor="black"):
+        super().__init__(x, y, width, height, None, label2, functionName, fill, textColor)
+        self.label1 = label1
+        self.textSize = textSize
