@@ -11,15 +11,15 @@ def exportToHTML(fileName, listOfObjects):
     numImg = 0
     for obj in listOfObjects:
         if isinstance(obj, Div):
-            newDiv = f'\t<div class={obj.cssClass}></div>'
+            newDiv = f'\t<div class={obj.cssClass}></div>\n'
             html.write(newDiv)
         elif isinstance(obj, Text):
-            newSpan = f'\t<span class={obj.cssClass}>{obj.content}</span>'
+            newSpan = f'\t<span class={obj.cssClass}>{obj.content}</span>\n'
             html.write(newSpan)
         elif isinstance(obj, Img):
             imagePath = f'image{numImg}.{obj.image.format}'
             obj.image.save('export/' + imagePath)
-            newImg = f'\t<img class={obj.cssClass} src="{imagePath}"/>'
+            newImg = f'\t<img class={obj.cssClass} src="{imagePath}"/>\n'
             html.write(newImg)
             numImg += 1
     finalHTML = getFinalHTML()

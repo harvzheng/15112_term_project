@@ -1,7 +1,7 @@
 # TODO
-# 3. add relative positioning (divs have children)
-# 4. add error messages
-# 6. direct text entry onto canvas
+# debug
+# text associated with shape (relative positioning/child stuff!)
+# write/read file for large number of undo/redo
 # fix undo/redo
 
 ############################################################
@@ -14,12 +14,22 @@
 # Icons used are designed by user "Kiranshastry" and are from Flaticon.com. 
 # Name of the pack where the icons are from is "Alignment and Tools Icon Pack." 
 #   link: https://www.flaticon.com/packs/alignment-and-tools
+#
+# filechooser/error/colorchooser stuff from:
+# https://runestone.academy/runestone/books/published/thinkcspy/GUIandEventDrivenProgramming/02_standard_dialog_boxes.html
 ############################################################
+
+# logic for relative positioning:
+# select one or two objects to make children
+#   • selecting one will just make it relative 
+#   • selecting two will make the smaller one relative to the larger one 
+# if only one is selected to be made relative, when converting it to HTML/CSS, make pixels a portion of the screen
+# if two are selected, the smaller one is fully encased in larger one and the larger one can only be a div
 
 from modules.cmu_112_graphics import *
 from exporter import *
 from tkinter import *
-from tkinter import colorchooser
+from tkinter import colorchooser, messagebox, filedialog
 from classes import *
 from PIL import Image
 import _pickle as pickle
@@ -90,6 +100,8 @@ class MyApp(App):
             newY += 50
         colorPalette = ColorPalette(0, 0, self.toolBarMargin, self.toolBarMargin, "Set\nColor", "colorPicker", self.curColor)
         self.toolsBar.append(colorPalette)
+        makeRelativeBtn = Button(0, 600, 50, 50, None, "Make Relative", "makeRelative")
+        self.toolsBar.append(makeRelativeBtn)
 
     def initTextProps(self):
         self.curFont = "Helvetica"
@@ -115,6 +127,7 @@ class MyApp(App):
 
         self.curTool = 0
         self.objects = []
+        self.childObjects = []
         self.startX = 0
         self.startY = 0
         self.startItemXs = []
@@ -209,7 +222,7 @@ class MyApp(App):
         else:
             for obj in self.objects:
                 if self.checkObjectBounds(obj, x, y) and type(obj) != Img:
-                    if self.shiftHeld:
+                    if self.shiftHeld and obj not in self.selectedObjs:
                         self.selectedObjs.append(obj)
                         break
                     else:
@@ -237,19 +250,50 @@ class MyApp(App):
                     self.curTool = button.functionName
                 elif button.functionName == "colorPicker":
                     self.pickNewColor()
+                # elif button.functionName == "makeRelative":
+                #     self.makeComponentRelative()
+
+    def makeComponentRelative(self):
+        if len(self.selectedObjs) == 1:
+            self.selectedObjs[0].relative = True
+        elif len(self.selectedObjs) == 2 and self.selectedHasDiv():
+            obj1 = self.selectedObjs[0]
+            obj2 = self.selectedObjs[1]
+            print(f"obj1: ({obj1.x}, {obj1.y}); heigh")
+            if ((obj2.x < obj1.x and obj2.y < obj1.y) and 
+                (obj1.width < obj2.width and obj1.height < obj2.height) and 
+                type(obj2) == Div):
+                parentObj, childObj = obj2, obj1
+            elif ((obj2.x > obj1.x and obj2.y > obj1.y) and
+                    (obj1.width > obj2.width and obj1.height > obj2.height) and 
+                    type(obj1) == Div):
+                parentObj, childObj = obj1, obj2
+            else:
+                self.displayError("Not valid objects. The child object should be fully encased in the parent.")
+                return
+            parentObj.childObjects.append(childObj)
+            self.childObjects.append(childObj)
+            self.objects.remove(childObj)
 
     def pickNewColor(self):
         newColor = colorchooser.askcolor(initialcolor=self.curColor)
         if newColor != (None, None):
             self.curColor = newColor[-1]
+        self.toolsBar[-1].fill = self.curColor
 
     def saveCanvas(self):
-        f = open("canvas.obj", "wb")
+        filePath = filedialog.asksaveasfilename(initialdir=os.getcwd(),
+                                      title="Please select a file name for saving:",
+                                      filetypes=[("Object"), ("obj")])
+        f = open(filePath, "wb")
         pickle.dump(self.objects, f)
 
     def importCanvas(self):
-        if os.path.isfile("canvas.obj"):
-            f = open("canvas.obj", "rb")
+        filePath = filedialog.askopenfilename(initialdir=os.getcwd(),
+                                title="Please select a file name for saving:",
+                                      filetypes=[("Object"), ("obj")])
+        if os.path.isfile(filePath):
+            f = open("filePath", "rb")
             self.objects = pickle.load(f)
 
     def findSelectedAlign(self, x, y):
@@ -271,12 +315,18 @@ class MyApp(App):
         newFont = self.getUserInput("What should the new font be?")
         if newFont.lower()  in self.tkinterFonts:
             self.curFont = newFont
+        else:
+            self.displayError("Font not available")
 
     def updateFontSize(self):
         newFontSize = self.getUserInput("What should the new font size be?")
-        if newFontSize > 0 and type(newFontSize) == int:
+        if type(newFontSize) == int and newFontSize > 0:
             self.curFontSize = newFontSize
+        else:
+            self.displayError("Not a valid font size")
 
+    def displayError(self, message):
+        messagebox.showerror("Error", message)
 
     def handleTextButtonPress(self, functionName):
         if functionName == "fontFamily":
@@ -324,37 +374,68 @@ class MyApp(App):
         toAlignPositions = []
         newPosition = None # x coord or y coord, depending on which align was selected
         for obj in self.selectedObjs:
-            if align == 0: 
-                toAlignPositions.append(obj.x)
-                newPosition = min(toAlignPositions)
-            elif align == 1:
-                toAlignPositions.append(obj.x + obj.width/2)
-                newPosition = sum(toAlignPositions)/len(toAlignPositions)
-            elif align == 2:
-                toAlignPositions.append(obj.x + obj.width)
-                newPosition = max(toAlignPositions)
-            elif align == 3:
-                toAlignPositions.append(obj.y)
-                newPosition = min(toAlignPositions)
-            elif align == 4:
-                toAlignPositions.append(obj.y + obj.height/2)
-                newPosition = sum(toAlignPositions)/len(toAlignPositions)
+            if type(obj) == Img:
+                if align == 0: 
+                    obj.x = newPosition + obj.width/2
+                elif align == 1:
+                    obj.x = newPosition
+                elif align == 2:
+                    obj.x = newPosition - obj.width/2
+                elif align == 3:
+                    obj.y = newPosition + obj.width/2
+                elif align == 4:
+                    obj.y = newPosition
+                else:
+                    obj.y = newPosition - obj.height/2
             else:
-                toAlignPositions.append(obj.y + obj.height)
-                newPosition = max(toAlignPositions)
+                if align == 0: 
+                    toAlignPositions.append(obj.x)
+                    newPosition = min(toAlignPositions)
+                elif align == 1:
+                    toAlignPositions.append(obj.x + obj.width/2)
+                    newPosition = sum(toAlignPositions)/len(toAlignPositions)
+                elif align == 2:
+                    toAlignPositions.append(obj.x + obj.width)
+                    newPosition = max(toAlignPositions)
+                elif align == 3:
+                    toAlignPositions.append(obj.y)
+                    newPosition = min(toAlignPositions)
+                elif align == 4:
+                    toAlignPositions.append(obj.y + obj.height/2)
+                    newPosition = sum(toAlignPositions)/len(toAlignPositions)
+                else:
+                    toAlignPositions.append(obj.y + obj.height)
+                    newPosition = max(toAlignPositions)
+        self.alignSelectedObjectPositions(newPosition, align)
+
+    def alignSelectedObjectPositions(self, newPosition, align):
         for obj in self.selectedObjs:
-            if align == 0: 
-                obj.x = newPosition
-            elif align == 1:
-                obj.x = newPosition - obj.width/2
-            elif align == 2:
-                obj.x = newPosition - obj.width
-            elif align == 3:
-                obj.y = newPosition
-            elif align == 4:
-                obj.y = newPosition - obj.height/2
+            if type(obj) == Img:
+                if align == 0: 
+                    obj.x = newPosition + obj.width/2
+                elif align == 1:
+                    obj.x = newPosition
+                elif align == 2:
+                    obj.x = newPosition - obj.width/2
+                elif align == 3:
+                    obj.y = newPosition + obj.height/2
+                elif align == 4:
+                    obj.y = newPosition
+                else:
+                    obj.y = newPosition - obj.height/2
             else:
-                obj.y = newPosition - obj.height
+                if align == 0: 
+                    obj.x = newPosition
+                elif align == 1:
+                    obj.x = newPosition - obj.width/2
+                elif align == 2:
+                    obj.x = newPosition - obj.width
+                elif align == 3:
+                    obj.y = newPosition
+                elif align == 4:
+                    obj.y = newPosition - obj.height/2
+                else:
+                    obj.y = newPosition - obj.height
 
     def clearSelection(self):
         self.selectedObjs = []
@@ -380,6 +461,12 @@ class MyApp(App):
                 return False
         return True
 
+    def selectedHasDiv(self):
+        for obj in self.selectedObjs:
+            if type(obj) != Div:
+                return False
+        return True
+
     def mousePressed(self, event):
         if event.x < self.toolBarMargin and event.x > 0:
             self.findSelectedTool(event.x, event.y)
@@ -400,22 +487,24 @@ class MyApp(App):
             self.objects.append(newText)
             self.moves.append(("add", newText))
         elif self.curTool == 3:
-            imageName = self.getUserInput("Image path")
-            if imageName != "":
-                imagePath = os.getcwd() + '/' + imageName
-                try:
-                    image = self.loadImage(imagePath)
-                    imgWidth, imgHeight = image.size
-                    newImage = self.scaleImage(image, 500/(max(imgWidth, imgHeight)))
-                    newImage.format = image.format
-                    newImg = Img(event.x, event.y, 500/(max(imgWidth, imgHeight)), newImage, image)
-                    self.objects.append(newImg)
-                    self.moves.append(("add", newImg))
-                except:
-                    print(f"Path not valid: {imagePath}")
+            self.placeImage(event.x, event.y)
         elif self.curTool == 4:
             self.moves.append(("change bg", self.bgColor, self.curColor))
             self.bgColor = self.curColor
+
+    def placeImage(self, x, y):
+        filetypes=[('JPEG', 'jpeg'), ('PNG', 'png')]
+        imagePath = filedialog.askopenfilename( initialdir=os.getcwd(),
+                                    title="Please select a file:",
+                                    filetypes=filetypes)
+        if os.path.isfile(imagePath):
+                image = self.loadImage(imagePath)
+                imgWidth, imgHeight = image.size
+                newImage = self.scaleImage(image, 500/(max(imgWidth, imgHeight)))
+                newImage.format = image.format
+                newImg = Img(x, y, 500/(max(imgWidth, imgHeight)), newImage, image)
+                self.objects.append(newImg)
+                self.moves.append(("add", newImg))
 
     def resizeSelection(self, x, y):
         obj = self.selectedObjs[0]
@@ -431,11 +520,11 @@ class MyApp(App):
             dx = x - self.startX
             dy = y - self.startY
             oldFormat = obj.image.format
-            if max(width, height) == height and (height-dy) > 0:
+            if max(width, height) == height and (height+dy) > 5:
                 obj.image = self.scaleImage(obj.image, (obj.height+dy)/(obj.height))
                 obj.width = (obj.height+dy)/(obj.height)*width
                 obj.height += dy
-            elif max(width, height) == width and (width-dx) > 0:
+            elif max(width, height) == width and (width+dx) > 5:
                 obj.image = self.scaleImage(obj.image, (obj.width+dx)/(obj.width))
                 obj.height = (obj.width+dx)/(obj.width)*height
                 obj.width += dx
@@ -459,8 +548,10 @@ class MyApp(App):
             self.resizing = False
             if len(self.selectedObjs) > 0 and type(self.selectedObjs[0]) == Img:
                 obj = self.selectedObjs[0]
+                oldFormat = obj.image.format
                 scaleFactor = max(obj.image.size)/max(obj.fullSize.size)
                 obj.image = self.scaleImage(obj.fullSize, scaleFactor)
+                obj.image.format = oldFormat
         elif self.curTool == 0 and len(self.selectedObjs) != 0:
             move = ["move"]
             for i in range(len(self.selectedObjs)):
@@ -478,10 +569,18 @@ class MyApp(App):
             self.moves.append(("add", newDiv))
             self.curDiv = None
 
+    def drawDiv(self, canvas, div):
+        if div.childObjects == []:
+            canvas.create_rectangle(div.x, div.y, div.x + div.width, div.y + div.height, fill=div.color)
+        else:
+            canvas.create_rectangle(div.x, div.y, div.x + div.width, div.y + div.height, fill=div.color)
+            for obj in div.childObjects:
+                self.drawDiv(canvas, obj)
+
     def drawObjects(self, canvas):
         for o in self.objects:
             if isinstance(o, Div):
-                canvas.create_rectangle(o.x, o.y, o.x + o.width, o.y + o.height, fill=o.color)
+                self.drawDiv(canvas, o)
             elif isinstance(o, Text):
                 canvas.create_text(o.x, o.y, text=o.content, fill=o.color, anchor="nw", font=f"{o.font_family} {o.font_size}")
             elif isinstance(o, Img):

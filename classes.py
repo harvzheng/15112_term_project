@@ -6,6 +6,8 @@ class Div(object):
         self.height = height
         self.color = color
         self.cssClass = None
+        self.childObjects = []
+        self.relative = False
 
 class Text(object):
     def __init__(self, x, y, width, height, content, color, font_family, font_size):
@@ -17,6 +19,7 @@ class Text(object):
         self.color = color
         self.font_family = font_family
         self.font_size = font_size
+        self.relative = False
 
 class Img(object):
     def __init__(self, x, y, scalingFactor, image, fullSize):
@@ -28,6 +31,7 @@ class Img(object):
         self.width = width
         self.image = image
         self.fullSize = fullSize
+        self.relative = False
 
 class CSSClass(object):
     pastClasses = set()
