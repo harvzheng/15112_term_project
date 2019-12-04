@@ -8,23 +8,61 @@ def exportToHTML(fileName, listOfObjects):
     html = open(f"export/index.html", "w")
     initialHTML = getInitialHTML(fileName)
     html.write(initialHTML)
-    numImg = 0
     for obj in listOfObjects:
-        if isinstance(obj, Div):
-            newDiv = f'\t<div class={obj.cssClass}></div>\n'
-            html.write(newDiv)
-        elif isinstance(obj, Text):
-            newSpan = f'\t<p class={obj.cssClass}>{obj.content}</p>\n'
-            html.write(newSpan)
-        elif isinstance(obj, Img):
-            imagePath = f'image{numImg}.{obj.image.format}'
-            obj.image.save('export/' + imagePath)
-            newImg = f'\t<img class={obj.cssClass} src="{imagePath}"/>\n'
-            html.write(newImg)
-            numImg += 1
+        if type(obj) == Div and obj.childObjects != []:
+            html.write(getPartialHTMLLine(obj))
+            html.write(exportChildHTML(obj))
+        else:
+            html.write(getHTMLLine(obj))
+            
     finalHTML = getFinalHTML()
     html.write(finalHTML)
     html.close()
+
+def exportChildHTML(obj, level=1):
+    if obj.childObjects == []:
+        newHTML = getPartialHTMLLine(obj)
+        return '\t'*level+newHTML
+    else:
+        html = ""
+        for child in obj.childObjects:
+            html += exportChildHTML(child, level+1)
+        return html
+
+def getPartialHTMLLine(obj):
+    if isinstance(obj, Div):
+        newHTML = f'\t\t<div class={obj.cssClass}>\n'
+    elif isinstance(obj, Text):
+        newHTML = f'\t\t<p class={obj.cssClass}>{obj.content}\n'
+    elif isinstance(obj, Img):
+        numImg = countImages() + 1
+        imagePath = f'image{numImg}.{obj.image.format}'
+        obj.image.save('export/' + imagePath)
+        newHTML = f'\t\t<img class={obj.cssClass} src="{imagePath}"/>\n'
+    return newHTML
+
+def getHTMLLine(obj):
+    if isinstance(obj, Div):
+        newDiv = f'\t\t<div class={obj.cssClass}></div>\n'
+        return newDiv
+    elif isinstance(obj, Text):
+        newP = f'\t\t<p class={obj.cssClass}>{obj.content}</p>\n'
+        return newP
+    elif isinstance(obj, Img):
+        numImg = countImages() + 1
+        imagePath = f'image{numImg}.{obj.image.format}'
+        obj.image.save('export/' + imagePath)
+        newImg = f'\t\t<img class={obj.cssClass} src="{imagePath}"/>\n'
+        return newImg
+
+def countImages():
+    numImages = 0
+    if os.path.isdir('export'):
+        for filename in os.listdir('export'):
+            if (os.path.isfile('export/' + filename) and 
+                filename.endswith('jpg') or filename.endswith('png') or filename.endswith('jpeg')):
+                numImages += 1
+    return numImages
 
 def exportToCSS(backgroundColor, dictOfClasses):
     css = open("export/style.css", "w")
@@ -56,7 +94,7 @@ def getCSSDivCode(cssClass, cssClassName):
             elif type(prop) == str and prop.startswith("margin"):
                 newProp = '-'.join(prop.split('_'))
                 cssCode += f'\t{newProp}: {int(value)}px;\n'
-            elif type(value) == int or type(value)= = float:
+            elif type(value) == int or type(value) == float:
                 cssCode += f'\t{prop}: {int(value)}px;\n'
             else:
                 cssCode += f'\t{prop}: {value};\n'

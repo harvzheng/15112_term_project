@@ -532,7 +532,7 @@ class MyApp(App):
         self.selectedObjs = []
         self.startItemXs = []
         self.startItemYs = []
-        self.resizing = True
+        self.resizing = False
 
     def deleteSelectedObject(self):
         for obj in self.selectedObjs:
@@ -555,7 +555,7 @@ class MyApp(App):
             obj = self.selectedObjs[i]
             obj.x += dx
             obj.y += dy
-            if obj.childObjects != []:
+            if type(obj) == Div and obj.childObjects != []:
                 self.moveChildren(obj, dx, dy)
         self.startX = x
         self.startY = y
@@ -635,7 +635,7 @@ class MyApp(App):
                 dy = y - self.startY 
                 obj.width +=  dx
                 obj.height += dy
-                if obj.childObjects != []:
+                if type(obj) == Div and obj.childObjects != []:
                     self.resizeChildren(obj, dx, dy)
                 self.startX = x
                 self.startY = y
