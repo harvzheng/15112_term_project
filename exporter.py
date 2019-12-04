@@ -14,7 +14,7 @@ def exportToHTML(fileName, listOfObjects):
             newDiv = f'\t<div class={obj.cssClass}></div>\n'
             html.write(newDiv)
         elif isinstance(obj, Text):
-            newSpan = f'\t<span class={obj.cssClass}>{obj.content}</span>\n'
+            newSpan = f'\t<p class={obj.cssClass}>{obj.content}</p>\n'
             html.write(newSpan)
         elif isinstance(obj, Img):
             imagePath = f'image{numImg}.{obj.image.format}'
@@ -29,7 +29,9 @@ def exportToHTML(fileName, listOfObjects):
 def exportToCSS(backgroundColor, dictOfClasses):
     css = open("export/style.css", "w")
     bgColor = "body {\n\tbackground-color: " + backgroundColor + ";\n}\n"
+    initialP = "p {\n\tmargin: 0;\n}\n"
     css.write(bgColor)
+    css.write(initialP)
     for cssClass in dictOfClasses:
         cssCode = ""
         if cssClass.color != None and cssClass.height != None:
@@ -46,47 +48,56 @@ def exportToCSS(backgroundColor, dictOfClasses):
 
 def getCSSDivCode(cssClass, cssClassName):
     cssCode = f'\n.{cssClassName} {{\n'
-    cssCode += '\tposition: absolute;\n'
     for prop in cssClass.__dict__:
         value = cssClass.__dict__[prop]
-        if prop == "color":
-            cssCode += f'\tbackground-color: {value};\n'
-        elif type(value) == int or type(value) == float:
-            cssCode += f'\t{prop}: {int(value)}px;\n'
-        elif value != None:
-            cssCode += f'\t{prop}: {value};\n'
+        if value != None:
+            if prop == "color":
+                cssCode += f'\tbackground-color: {value};\n'
+            elif type(prop) == str and prop.startswith("margin"):
+                newProp = '-'.join(prop.split('_'))
+                cssCode += f'\t{newProp}: {int(value)}px;\n'
+            elif type(value) == int or type(value)= = float:
+                cssCode += f'\t{prop}: {int(value)}px;\n'
+            else:
+                cssCode += f'\t{prop}: {value};\n'
     cssCode += '}\n'
     return cssCode
 
 def getCSSTextCode(cssClass, cssClassName):
     cssCode = f'\n.{cssClassName} {{\n'
-    cssCode += '\tposition: absolute;\n'
     for prop in cssClass.__dict__:
         value = cssClass.__dict__[prop]
-        if prop == "color":
-            cssCode += f'\tcolor: {value};\n'
-        elif type(prop) == str and prop.startswith("font"):
-            newProp = '-'.join(prop.split('_'))
-            if newProp.endswith('size'):
-                cssCode += f'\t{newProp}: {value}px;\n'
+        if value != None:
+            if prop == "color":
+                cssCode += f'\tcolor: {value};\n'
+            elif type(prop) == str and prop.startswith("margin"):
+                newProp = '-'.join(prop.split('_'))
+                cssCode += f'\t{newProp}: {int(value)}px;\n'
+            elif type(prop) == str and prop.startswith("font"):
+                newProp = '-'.join(prop.split('_'))
+                if newProp.endswith('size'):
+                    cssCode += f'\t{newProp}: {value}px;\n'
+                else:
+                    cssCode += f'\t{newProp}: {value};\n'
+            elif type(value) == int or type(value) == float:
+                cssCode += f'\t{prop}: {int(value)}px;\n'
             else:
-                cssCode += f'\t{newProp}: {value};\n'
-        elif type(value) == int or type(value) == float:
-            cssCode += f'\t{prop}: {int(value)}px;\n'
-        elif value != None:
-            cssCode += f'\t{prop}: {value};\n'
+                cssCode += f'\t{prop}: {value};\n'
     cssCode += '}\n'
     return cssCode
 
 def getCSSImgCode(cssClass, cssClassName):
     cssCode = f'\n.{cssClassName} {{\n'
-    cssCode += '\tposition: absolute;\n'
     for prop in cssClass.__dict__:
         value = cssClass.__dict__[prop]
-        if type(value) == int or type(value) == float:
-            cssCode += f'\t{prop}: {int(value)}px;\n'
-        elif value != None:
-            cssCode += f'\t{prop}: {value};\n'
+        if value != None:
+            if type(value) == int or type(value) == float:
+                cssCode += f'\t{prop}: {int(value)}px;\n'
+            elif type(prop) == str and prop.startswith("margin"):
+                newProp = '-'.join(prop.split('_'))
+                cssCode += f'\t{newProp}: {int(value)}px;\n'
+            else:
+                cssCode += f'\t{prop}: {value};\n'
     cssCode += '}\n'
     return cssCode
 

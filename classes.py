@@ -7,7 +7,7 @@ class Div(object):
         self.color = color
         self.cssClass = None
         self.childObjects = []
-        self.relative = False
+        self.static = False
         self.parentObject = None
 
 class Text(object):
@@ -20,7 +20,7 @@ class Text(object):
         self.color = color
         self.font_family = font_family
         self.font_size = font_size
-        self.relative = False
+        self.static = False
         self.parentObject = None
 
 class Img(object):
@@ -33,13 +33,14 @@ class Img(object):
         self.width = width
         self.image = image
         self.fullSize = fullSize
-        self.relative = False
+        self.static = False
         self.parentObject = None
 
 class CSSClass(object):
     pastClasses = set()
     classes = dict()
-    def __init__(self, color=None, height=None, width=None, left=None, top=None, font_family=None, font_size=None):
+    def __init__(self, color=None, height=None, width=None, left=None, top=None, 
+                        font_family=None, font_size=None, position="absolute", margin_left=None, margin_top=None):
         self.color = color
         self.height = height
         self.width = width
@@ -47,6 +48,9 @@ class CSSClass(object):
         self.top = top
         self.font_family = font_family
         self.font_size = font_size
+        self.position = position
+        self.margin_left = margin_left
+        self.margin_top = margin_top
         if self not in CSSClass.pastClasses:
             CSSClass.pastClasses.add(self)
             newVal = "class" + str(len(CSSClass.classes))

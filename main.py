@@ -1,7 +1,7 @@
 # TODO
 # debug
-# text associated with shape (relative positioning/child stuff!)
 # fix undo/redo
+# add static to absolute parent objects such that they align at the top
 
 ############################################################
 # Citations:
@@ -17,13 +17,6 @@
 # filechooser/error/colorchooser stuff from:
 # https://runestone.academy/runestone/books/published/thinkcspy/GUIandEventDrivenProgramming/02_standard_dialog_boxes.html
 ############################################################
-
-# logic for relative positioning:
-# select one or two objects to make children
-#   • selecting one will just make it relative 
-#   • selecting two will make the smaller one relative to the larger one 
-# if only one is selected to be made relative, when converting it to HTML/CSS, make pixels a portion of the screen
-# if two are selected, the smaller one is fully encased in larger one and the larger one can only be a div
 
 from modules.cmu_112_graphics import *
 from exporter import *
@@ -99,8 +92,8 @@ class MyApp(App):
             newY += 50
         colorPalette = ColorPalette(0, 0, self.toolBarMargin, self.toolBarMargin, "Set\nColor", "colorPicker", self.curColor)
         self.toolsBar.append(colorPalette)
-        makeRelativeBtn = Button(0, 600, 50, 50, None, "Make Relative", "makeRelative")
-        self.toolsBar.append(makeRelativeBtn)
+        makeStaticBtn = Button(0, 600, 50, 50, None, "Make Static", "makeStatic")
+        self.toolsBar.append(makeStaticBtn)
         makeAbsoluteBtn = Button(0, 675, 50, 50, None, "Make Absolute", "makeAbsolute")
         self.toolsBar.append(makeAbsoluteBtn)
 
@@ -260,8 +253,8 @@ class MyApp(App):
                     self.curTool = button.functionName
                 elif button.functionName == "colorPicker":
                     self.pickNewColor()
-                elif button.functionName == "makeRelative":
-                    self.makeComponentRelative()
+                elif button.functionName == "makeStatic":
+                    self.makeComponentStatic()
                 elif button.functionName == "makeAbsolute":
                     self.makeComponentAbsolute()
 
@@ -271,12 +264,19 @@ class MyApp(App):
                 childObj = self.selectedObjs[0]
                 childObj.parentObject.childObjects.remove(childObj)    
                 self.objects.add(childObj)
-            self.selectedObjs[0].relative = False
+            self.selectedObjs[0].static = False
 
-    def makeComponentRelative(self):
-        if len(self.selectedObjs) == 1:
-            self.selectedObjs[0].relative = True
-        elif len(self.selectedObjs) == 2 and self.selectedHasDiv():
+    def childrenShareSpace(self, childObj, parentObj):
+        for child in parentObj.childObjects:
+            if ((child.x+child.width>childObj.x or child.x<childObj.x+childObj.width) or
+                (child.y+child.height>childObj.y or child.y<childObj.y+childObj.height)):
+                return True
+        return False
+
+    def makeComponentStatic(self):
+        # if len(self.selectedObjs) == 1:
+        #     self.selectedObjs[0].static = True
+        if len(self.selectedObjs) == 2 and self.selectedHasDiv():
             obj1 = self.selectedObjs[0]
             obj2 = self.selectedObjs[1]
             if ((obj2.x < obj1.x and obj2.y < obj1.y) and 
@@ -288,11 +288,14 @@ class MyApp(App):
                     type(obj1) == Div):
                 parentObj, childObj = obj1, obj2
             else:
-                self.displayError("Not valid objects. The child object should be fully encased in the parent.")
+                self.displayError("Not a valid placement of a child object")
+                return
+            if self.childrenShareSpace(childObj, parentObj):
+                self.displayError("Not a valid placement of a child object")
                 return
             parentObj.childObjects.append(childObj)
             childObj.parentObject = parentObj
-            childObj.relative = True
+            childObj.static = True
             self.childObjects.append(childObj)
             self.objects.remove(childObj)
 
@@ -305,16 +308,16 @@ class MyApp(App):
     def saveCanvas(self):
         filePath = filedialog.asksaveasfilename(initialdir=os.getcwd(),
                                       title="Please select a file name for saving:",
-                                      filetypes=[("Object"), ("obj")])
+                                      filetypes=[("Object", "obj")])
         f = open(filePath, "wb")
         pickle.dump(self.objects, f)
 
     def importCanvas(self):
         filePath = filedialog.askopenfilename(initialdir=os.getcwd(),
                                 title="Please select a file name for saving:",
-                                      filetypes=[("Object"), ("obj")])
+                                      filetypes=[("Object", "obj")])
         if os.path.isfile(filePath):
-            f = open("filePath", "rb")
+            f = open(filePath, "rb")
             self.objects = pickle.load(f)
 
     def findSelectedAlign(self, x, y):
@@ -377,19 +380,86 @@ class MyApp(App):
 
     def convertToCSS(self):
         for obj in self.objects:
-            if isinstance(obj, Div):
-                newClass = CSSClass(obj.color, obj.height, obj.width, 
-                                    left=obj.x-self.toolBarMargin, top=obj.y-self.alignBarMargin)
-                obj.cssClass = CSSClass.classes[newClass]
-            elif isinstance(obj, Text):
-                newClass = CSSClass(obj.color, left=obj.x-self.toolBarMargin, top=obj.y-self.alignBarMargin, 
-                        font_family=obj.font_family, font_size=obj.font_size)
-                obj.cssClass = CSSClass.classes[newClass]
-            elif isinstance(obj, Img):
-                x0 = obj.x - obj.width//2 - self.toolBarMargin
-                y0 = obj.y - obj.height//2 - self.alignBarMargin
-                newClass = CSSClass(height=obj.height, width=obj.width, left=x0, top=y0)
-                obj.cssClass = CSSClass.classes[newClass]
+            if obj.static:
+                position = "static"
+            else:
+                position = "absolute"
+            if obj.childObjects != []:
+                if obj.static:
+                    self.convertToCSSStatic(obj)
+                    self.convertChildrenToCSS(obj)
+                else:
+                    newClass = CSSClass(obj.color, obj.height, obj.width, position=position,
+                                        left=obj.x-self.toolBarMargin, top=obj.y-self.alignBarMargin)
+                    obj.cssClass = CSSClass.classes[newClass]
+                    self.convertChildrenToCSS(obj)
+            else:
+                self.convertToCSSAbsolute(obj)
+
+    def convertChildrenToCSS(self, obj):
+        if obj.childObjects == []:
+            if obj.static:
+                self.convertToCSSStatic(obj)
+            else:
+                self.convertToCSSAbsolute(obj)
+        else:
+            for child in obj.childObjects:
+                self.convertChildrenToCSS(child)
+
+    def getMargins(self, obj):
+        childObjects = obj.parentObject.childObjects
+        if type(obj) == Img:
+            leftEdge = obj.x - obj.width/2
+            topEdge = obj.y - obj.height/2
+        else:
+            leftEdge = obj.x
+            topEdge = obj.y
+        smallestLeftMargin = leftEdge - obj.parentObject.x
+        smallestTopMargin = topEdge - obj.parentObject.y
+        for obj2 in childObjects:
+            if type(obj2) == Img:
+                leftEdge2 = obj.x - obj.width/2
+                topEdge2 = obj.y - obj.height/2
+            else:
+                leftEdge2 = obj.x
+                topEdge2 = obj.y
+            if (leftEdge - leftEdge2 > 0) and (leftEdge - leftEdge2 < smallestLeftMargin):
+                smallestLeftMargin = leftEdge - leftEdge2
+            if (topEdge - topEdge2 > 0) and (topEdge - topEdge2 < smallestTopMargin):
+                smallestTopMargin = topEdge - topEdge2
+        return (smallestLeftMargin, smallestTopMargin)
+
+    def convertToCSSStatic(self, obj):
+        position="static"
+        smallestLeftMargin, smallestTopMargin = self.getMargins(obj)
+        if isinstance(obj, Div):
+            newClass = CSSClass(obj.color, obj.height, obj.width, position=position,
+                                margin_left=smallestLeftMargin, margin_top=smallestTopMargin)
+            obj.cssClass = CSSClass.classes[newClass]
+        elif isinstance(obj, Text):
+            newClass = CSSClass(obj.color, margin_left=smallestLeftMargin, margin_top=smallestTopMargin, 
+                            position=position, font_family=obj.font_family, font_size=obj.font_size)
+            obj.cssClass = CSSClass.classes[newClass]
+        elif isinstance(obj, Img):
+            newClass = CSSClass(height=obj.height, width=obj.width, margin_left=smallestLeftMargin, 
+                            margin_top=smallestTopMargin, position=position)
+            obj.cssClass = CSSClass.classes[newClass]        
+
+    def convertToCSSAbsolute(self, obj):
+        position="absolute"
+        if isinstance(obj, Div):
+            newClass = CSSClass(obj.color, obj.height, obj.width, position=position,
+                                left=obj.x-self.toolBarMargin, top=obj.y-self.alignBarMargin)
+            obj.cssClass = CSSClass.classes[newClass]
+        elif isinstance(obj, Text):
+            newClass = CSSClass(obj.color, left=obj.x-self.toolBarMargin, top=obj.y-self.alignBarMargin, 
+                    position=position, font_family=obj.font_family, font_size=obj.font_size)
+            obj.cssClass = CSSClass.classes[newClass]
+        elif isinstance(obj, Img):
+            x0 = obj.x - obj.width//2 - self.toolBarMargin
+            y0 = obj.y - obj.height//2 - self.alignBarMargin
+            newClass = CSSClass(height=obj.height, width=obj.width, left=x0, top=y0, position=position)
+            obj.cssClass = CSSClass.classes[newClass]
 
     def alignSelectedObjects(self, align):
         toAlignPositions = []
@@ -559,7 +629,7 @@ class MyApp(App):
 
     def resizeSelection(self, x, y):
         obj = self.selectedObjs[0]
-        if not obj.relative:
+        if not obj.static:
             if type(obj) != Img:
                 dx = x - self.startX
                 dy = y - self.startY 
@@ -693,7 +763,7 @@ class MyApp(App):
                     canvas.create_rectangle(x+width/2-5, y+height/2-5, x+width/2+5, y+height/2+5, fill="black")
             else:
                 canvas.create_rectangle(x, y, x+width, y+height, outline="red", width=5)
-                if len(self.selectedObjs) == 1 and not self.selectedObjs[0].relative:
+                if len(self.selectedObjs) == 1 and not self.selectedObjs[0].static:
                     canvas.create_rectangle(x+width-5, y+height-5, x+width+5, y+height+5, fill="black")
 
 
