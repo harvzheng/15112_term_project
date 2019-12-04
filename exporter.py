@@ -5,19 +5,22 @@ from PIL import Image
 def exportToHTML(fileName, listOfObjects):
     cleanFiles()
     os.mkdir("export")
-    html = open(f"export/index.html", "w")
+    html = ""
+    # html = open("export/index.html", "w+")
     initialHTML = getInitialHTML(fileName)
-    html.write(initialHTML)
+    html += initialHTML + '\n'
     for obj in listOfObjects:
         if type(obj) == Div and obj.childObjects != []:
-            html.write(getPartialHTMLLine(obj))
-            html.write(exportChildHTML(obj))
+            html += getPartialHTMLLine(obj)
+            html += exportChildHTML(obj)
         else:
-            html.write(getHTMLLine(obj))
+            html += getHTMLLine(obj)
             
-    finalHTML = getFinalHTML()
-    html.write(finalHTML)
-    html.close()
+    html += getFinalHTML()
+    html = closeTags(html)
+    f = open("export/index.html", "w")
+    f.write(html)
+    f.close()
 
 def exportChildHTML(obj, level=1):
     if obj.childObjects == []:
@@ -29,16 +32,36 @@ def exportChildHTML(obj, level=1):
             html += exportChildHTML(child, level+1)
         return html
 
+def closeTags(html):
+    newHTML = ""
+    prevNumTabs = 0
+    yetToClose = []
+    print(html.splitlines())
+    for l in html.splitlines():
+        newHTML += l + '\n'
+        numTabs = l.count("\t")
+        line = l.strip()
+        tag = line[1:(line.find(' '))]
+        if numTabs > prevNumTabs:
+            yetToClose.append((tag, numTabs))
+        if numTabs < prevNumTabs:
+            while(len(yetToClose) > 0):
+                tagToClose = yetToClose.pop()
+                newHTML += '\t'*tagToClose[1] + '</' + tagToClose[0] + '>\n'
+        prevNumTabs = numTabs
+    print(newHTML)
+    return newHTML
+
 def getPartialHTMLLine(obj):
     if isinstance(obj, Div):
-        newHTML = f'\t\t<div class={obj.cssClass}>\n'
+        newHTML = f'\t<div class={obj.cssClass}>\n'
     elif isinstance(obj, Text):
-        newHTML = f'\t\t<p class={obj.cssClass}>{obj.content}\n'
+        newHTML = f'\t<p class={obj.cssClass}>{obj.content}\n'
     elif isinstance(obj, Img):
         numImg = countImages() + 1
         imagePath = f'image{numImg}.{obj.image.format}'
         obj.image.save('export/' + imagePath)
-        newHTML = f'\t\t<img class={obj.cssClass} src="{imagePath}"/>\n'
+        newHTML = f'\t<img class={obj.cssClass} src="{imagePath}"/>\n'
     return newHTML
 
 def getHTMLLine(obj):
@@ -146,7 +169,7 @@ def getInitialHTML(fileName):
     <link rel="stylesheet" type="text/css" href="style.css"/>
     <head>
         <title>{fileName}</title>
-    <head>
+    </head>
     <body>
 '''
     return initialHTML
