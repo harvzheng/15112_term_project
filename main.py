@@ -48,8 +48,8 @@ class MyApp(App):
     def setExportButtons(self):
         buttonWidth = 130
         button1 = Button(self.width-buttonWidth, 0, buttonWidth, self.alignBarMargin, None, "Export HTML", "exportCanvas", fill="navy", textColor="white")
-        button2 = Button(self.width-buttonWidth*2, 0, buttonWidth, self.alignBarMargin, None, "Save Canvas", "saveCanvas", fill="navy", textColor="white")
-        button3 = Button(self.width-buttonWidth*3, 0, buttonWidth, self.alignBarMargin, None, "Import Canvas", "importCanvas", fill="navy", textColor="white")
+        button2 = Button(self.width-buttonWidth*2-10, 0, buttonWidth, self.alignBarMargin, None, "Save Canvas", "saveCanvas", fill="navy", textColor="white")
+        button3 = Button(self.width-buttonWidth*3-20, 0, buttonWidth, self.alignBarMargin, None, "Import Canvas", "importCanvas", fill="navy", textColor="white")
         self.alignBarButtons.append(button1)
         self.alignBarButtons.append(button2)
         self.alignBarButtons.append(button3)
@@ -90,12 +90,14 @@ class MyApp(App):
             button = Button(0, newY, self.toolBarMargin, toolButtonHeight, icon, self.toolsDict[key], key)
             self.toolsBar.append(button)
             newY += 50
+        makeStaticBtn = Button(0, 600, 50, 50, None, "Make\nStatic", "makeStatic")
+        makeStaticBtn.fontSize = 14
+        self.toolsBar.append(makeStaticBtn)
+        makeAbsoluteBtn = Button(0, 675, 50, 50, None, "Make\nAbsolute", "makeAbsolute")
+        makeAbsoluteBtn.fontSize = 14
+        self.toolsBar.append(makeAbsoluteBtn)
         colorPalette = ColorPalette(0, 0, self.toolBarMargin, self.toolBarMargin, "Set\nColor", "colorPicker", self.curColor)
         self.toolsBar.append(colorPalette)
-        makeStaticBtn = Button(0, 600, 50, 50, None, "Make Static", "makeStatic")
-        self.toolsBar.append(makeStaticBtn)
-        makeAbsoluteBtn = Button(0, 675, 50, 50, None, "Make Absolute", "makeAbsolute")
-        self.toolsBar.append(makeAbsoluteBtn)
 
     def initTextProps(self):
         self.curFont = "Helvetica"
@@ -197,29 +199,26 @@ class MyApp(App):
     
     def detectResizeClick(self, x, y):
         obj = self.selectedObjs[0]
+        if type(obj) == Img:
+            objX, objY = self.getCoordsOfImg(obj)
+        else:
+            objX, objY = obj.x, obj.y
         if type(obj) != Text:
-            if type(obj) == Img:
-                return ((obj.x+obj.width/2-5 < x and obj.x+obj.width/2+5 > x) and (obj.y+obj.height/2-5 < y and obj.y+obj.height/2+5 > y))
-            else:
-                return ((obj.x+obj.width-5 < x and obj.x+obj.width+5 > x) and (obj.y+obj.height-5 < y and obj.y+obj.height+5 > y))
+            resizeClick = ((objX+obj.width-5 < x and objX+obj.width+5 > x) and (objY+obj.height-5 < y and objY+obj.height+5 > y))
+            return resizeClick
 
     def checkObjectBounds(self, obj, x, y):
-        return (((obj.x < x and (obj.x + obj.width) > x) or
-                    (obj.x > x and (obj.x + obj.width) < x)) and
-                    ((obj.y < y and (obj.y + obj.height) > y) or
-                    (obj.y > y and (obj.y + obj.height) < y)))
+        if type(obj) == Img:
+            objX, objY = self.getCoordsOfImg(obj)
+        else:
+            objX, objY = obj.x, obj.y
+        return (((objX < x and (objX + obj.width) > x) or
+                    (objX > x and (objX + obj.width) < x)) and
+                    ((objY < y and (objY + obj.height) > y) or
+                    (objY > y and (objY + obj.height) < y)))
 
     def addClickedObjects(self, obj, x, y):
-        if self.checkObjectBounds(obj, x, y) and type(obj) != Img:
-            if self.shiftHeld:
-                self.selectedObjs.append(obj)
-                return True
-            else:
-                self.selectedObjs = [obj]
-                return True
-        elif (type(obj) == Img and 
-            (obj.y + obj.height/2 > y and obj.y - obj.height/2 < y) and
-            (obj.x + obj.width/2 > x and obj.x - obj.width/2 < x)):
+        if self.checkObjectBounds(obj, x, y):
             if self.shiftHeld:
                 self.selectedObjs.append(obj)
                 return True
@@ -268,15 +267,23 @@ class MyApp(App):
 
     def childrenShareSpace(self, childObj, parentObj):
         for child in parentObj.childObjects:
-            if ((child.x+child.width>childObj.x or child.x<childObj.x+childObj.width) or
-                (child.y+child.height>childObj.y or child.y<childObj.y+childObj.height)):
+            if type(child) == Img:
+                childX, childY = self.getCoordsOfImg(child)
+            if type(childObj) == Img:
+                childObjX, childObjY = self.getCoordsOfImg(childObj)
+            if ((childX+child.width>childObjX or childX<childObjX+childObj.width) or
+                (childY+child.height>childObjY or childY<childObjY+childObj.height)):
                 return True
         return False
 
+    def getCoordsOfImg(self, img):
+        return (img.x-img.width/2, img.y-img.height/2)
+
     def makeComponentStatic(self):
-        # if len(self.selectedObjs) == 1:
-        #     self.selectedObjs[0].static = True
-        if len(self.selectedObjs) == 2 and self.selectedHasDiv():
+        print(self.selectedHasDiv())
+        if len(self.selectedObjs) == 1:
+            self.selectedObjs[0].static = True
+        elif len(self.selectedObjs) == 2 and self.selectedHasDiv():
             obj1 = self.selectedObjs[0]
             obj2 = self.selectedObjs[1]
             if ((obj2.x < obj1.x and obj2.y < obj1.y) and 
@@ -309,8 +316,9 @@ class MyApp(App):
         filePath = filedialog.asksaveasfilename(initialdir=os.getcwd(),
                                       title="Please select a file name for saving:",
                                       filetypes=[("Object", "obj")])
-        f = open(filePath, "wb")
-        pickle.dump(self.objects, f)
+        if filePath != None and filePath != "":
+            f = open(filePath, "wb")
+            pickle.dump(self.objects, f)
 
     def importCanvas(self):
         filePath = filedialog.askopenfilename(initialdir=os.getcwd(),
@@ -337,7 +345,7 @@ class MyApp(App):
                 
     def updateFontFamily(self):
         newFont = self.getUserInput("What should the new font be?")
-        if newFont.lower()  in self.tkinterFonts:
+        if newFont.lower() in self.tkinterFonts:
             self.curFont = newFont
         else:
             self.displayError("Font not available")
@@ -361,9 +369,10 @@ class MyApp(App):
             self.updateSelected()
         elif functionName == "editText":
             newText = self.getUserInput("New text?")
-            self.selectedObjs[0].content = newText
-            self.selectedObjs[0].height = (newText.count("\n")+1)* self.selectedObjs[0].font_size/2
-            self.selectedObjs[0].width = len(newText) * self.selectedObjs[0].font_size
+            if type(newText) :
+                self.selectedObjs[0].content = newText
+                self.selectedObjs[0].height = (newText.count("\n")+1)* self.selectedObjs[0].font_size/2
+                self.selectedObjs[0].width = len(newText) * self.selectedObjs[0].font_size
 
     def updateSelected(self):
         for obj in self.selectedObjs:
@@ -384,7 +393,7 @@ class MyApp(App):
                 position = "static"
             else:
                 position = "absolute"
-            if obj.childObjects != []:
+            if type(obj) == Div and obj.childObjects != []:
                 if obj.static:
                     self.convertToCSSStatic(obj)
                     self.convertChildrenToCSS(obj)
@@ -394,10 +403,13 @@ class MyApp(App):
                     obj.cssClass = CSSClass.classes[newClass]
                     self.convertChildrenToCSS(obj)
             else:
-                self.convertToCSSAbsolute(obj)
+                if obj.static:
+                    self.convertToCSSStatic(obj)
+                else:
+                    self.convertToCSSAbsolute(obj)
 
     def convertChildrenToCSS(self, obj):
-        if obj.childObjects == []:
+        if type(obj) != Div or obj.childObjects == []:
             if obj.static:
                 self.convertToCSSStatic(obj)
             else:
@@ -541,7 +553,7 @@ class MyApp(App):
             self.clearSelection()
 
     def moveChildren(self, obj, dx, dy):
-        if obj.childObjects == []:
+        if type(obj) != Div or obj.childObjects == []:
             obj.x += dx
             obj.y += dy
         else:
@@ -568,14 +580,25 @@ class MyApp(App):
 
     def selectedHasDiv(self):
         for obj in self.selectedObjs:
-            if type(obj) != Div:
-                return False
-        return True
+            if type(obj) == Div:
+                return True
+        return False
+
+    def selectedHasStatic(self):
+        for obj in self.selectedObjs:
+            if obj.static:
+                print("selected has static")
+                return True
+        return False
 
     def selectedObjectClicked(self, x, y):
         for obj in self.selectedObjs:
-            if ((obj.x < x and obj.y < y) and
-                (obj.x + obj.width > x and obj.y + obj.height > y)):
+            if type(obj) == Img:
+                objX, objY = self.getCoordsOfImg(obj)
+            else:
+                objX, objY = obj.x, obj.y
+            if ((objX < x and objY < y) and
+                (objX + obj.width > x and objY + obj.height > y)):
                 return True
         return False
 
@@ -593,11 +616,12 @@ class MyApp(App):
             self.curDiv = Div(self.startX, self.startY, 0, 0, self.curColor)
         elif self.curTool == 2:
             content = self.getUserInput("Input text")
-            textHeight = self.curFontSize * (content.count("\n")+1)
-            textWidth = self.curFontSize / 2 * len(content)
-            newText = Text(event.x, event.y, textWidth, textHeight, content, self.curColor, self.curFont, self.curFontSize)
-            self.objects.append(newText)
-            self.moves.append(("add", newText))
+            if content != None:
+                textHeight = self.curFontSize * (content.count("\n")+1)
+                textWidth = self.curFontSize / 2 * len(content)
+                newText = Text(event.x, event.y, textWidth, textHeight, content, self.curColor, self.curFont, self.curFontSize)
+                self.objects.append(newText)
+                self.moves.append(("add", newText))
         elif self.curTool == 3:
             self.placeImage(event.x, event.y)
         elif self.curTool == 4:
@@ -620,9 +644,11 @@ class MyApp(App):
 
     # add initial item dimensions of selected objects; if a violation occurs, reset to initial dimensions
     def resizeChildren(self, obj, dx, dy):
-        if obj.childObjects == []:
+        if type(obj) == Img or (type(obj) == Div and obj.childObjects == []):
             obj.width +=  dx
             obj.height += dy
+        elif type(obj) == Text:
+            pass
         else:
             for child in obj.childObjects:
                 self.resizeChildren(child, dx, dy)
@@ -657,9 +683,11 @@ class MyApp(App):
                 self.startY = y
 
     def mouseDragged(self, event):
+        self.updateMouse(event.x, event.y)
         if self.curTool == 0 and self.resizing and len(self.selectedObjs) != 0:
             self.resizeSelection(event.x, event.y)
-        elif self.curTool == 0 and len(self.selectedObjs) != 0 and event.y > self.alignBarMargin:
+        elif (self.curTool == 0 and len(self.selectedObjs) != 0 and event.y > self.alignBarMargin
+                    and not self.selectedHasStatic()):
             self.moveSelectedObjects(event.x, event.y)
         elif self.curTool == 1 and self.curDiv != None:
             width = event.x - self.startX
@@ -694,8 +722,10 @@ class MyApp(App):
             self.curDiv = None
 
     def drawDiv(self, canvas, div):
-        if div.childObjects == []:
+        if type(div) == Div and div.childObjects == []:
             canvas.create_rectangle(div.x, div.y, div.x + div.width, div.y + div.height, fill=div.color)
+        elif type(div) != Div:
+            self.drawComponent(canvas, div)
         else:
             canvas.create_rectangle(div.x, div.y, div.x + div.width, div.y + div.height, fill=div.color)
             for obj in div.childObjects:
@@ -703,16 +733,18 @@ class MyApp(App):
 
     def drawObjects(self, canvas):
         for o in self.objects:
-            if isinstance(o, Div):
-                self.drawDiv(canvas, o)
-            elif isinstance(o, Text):
-                canvas.create_text(o.x, o.y, text=o.content, fill=o.color, anchor="nw", font=f"{o.font_family} {o.font_size}")
-            elif isinstance(o, Img):
-                canvas.create_image(o.x, o.y, image=ImageTk.PhotoImage(o.image))
+            self.drawComponent(canvas, o)
         if self.curDiv != None:
             canvas.create_rectangle(self.curDiv.x, self.curDiv.y, 
                         self.curDiv.x + self.curDiv.width, self.curDiv.y + self.curDiv.height, 
                         fill=self.curDiv.color)
+    def drawComponent(self, canvas, o):
+        if isinstance(o, Div):
+            self.drawDiv(canvas, o)
+        elif isinstance(o, Text):
+            canvas.create_text(o.x, o.y, text=o.content, fill=o.color, anchor="nw", font=f"{o.font_family} {o.font_size}")
+        elif isinstance(o, Img):
+            canvas.create_image(o.x, o.y, image=ImageTk.PhotoImage(o.image))
 
     def drawToolbar(self, canvas):
         canvas.create_rectangle(0, 0, self.toolBarMargin, self.height, fill="gray", width=0)
@@ -729,7 +761,7 @@ class MyApp(App):
             canvas.create_rectangle(button.x, button.y, button.x+button.width, button.y+button.height, fill=button.fill)
             canvas.create_text(button.x+button.width/2, button.y+button.height, text=button.label, anchor="n")
         else:
-            canvas.create_text(button.x+button.width/2, button.y+button.height/2, text=button.label, font="Helvetica 20", anchor="center", fill=button.textColor)
+            canvas.create_text(button.x+button.width/2, button.y+button.height/2, text=button.label, font=f"Helvetica {button.fontSize}", anchor="center", fill=button.textColor)
 
     def drawTextButton(self, canvas, button):
         canvas.create_rectangle(button.x, button.y, button.x+button.width, button.y+button.height-button.textSize, fill=button.fill)
@@ -753,19 +785,15 @@ class MyApp(App):
 
     def drawHighlight(self, canvas):
         for obj in self.selectedObjs:
-            x = obj.x
-            y = obj.y
+            if type(obj) == Img:
+                x, y = self.getCoordsOfImg(obj)
+            else:
+                x, y = obj.x, obj.y
             height = obj.height
             width = obj.width
-            if type(obj) == Img:
-                canvas.create_rectangle(x-width/2, y-height/2, x+width/2, y+height/2, outline="red", width=5)
-                if len(self.selectedObjs) == 1:
-                    canvas.create_rectangle(x+width/2-5, y+height/2-5, x+width/2+5, y+height/2+5, fill="black")
-            else:
-                canvas.create_rectangle(x, y, x+width, y+height, outline="red", width=5)
-                if len(self.selectedObjs) == 1 and not self.selectedObjs[0].static:
-                    canvas.create_rectangle(x+width-5, y+height-5, x+width+5, y+height+5, fill="black")
-
+            canvas.create_rectangle(x, y, x+width, y+height, outline="black", width=5)
+            if len(self.selectedObjs) == 1 and not self.selectedObjs[0].static:
+                canvas.create_rectangle(x+width-5, y+height-5, x+width+5, y+height+5, fill="red")
 
     def drawBackground(self, canvas):
         if self.bgColor != None:

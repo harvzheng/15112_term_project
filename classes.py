@@ -35,6 +35,7 @@ class Img(object):
         self.fullSize = fullSize
         self.static = False
         self.parentObject = None
+        self.imgFormat = image.format
 
 class CSSClass(object):
     pastClasses = set()
@@ -77,6 +78,7 @@ class Button(object):
         self.functionName = functionName
         self.fill = fill
         self.textColor = textColor
+        self.fontSize = 20
     
     def didHitButton(self, x, y):
         if ((x < self.x + self.width and x > self.x) and

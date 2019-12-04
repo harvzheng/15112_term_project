@@ -6,7 +6,6 @@ def exportToHTML(fileName, listOfObjects):
     cleanFiles()
     os.mkdir("export")
     html = ""
-    # html = open("export/index.html", "w+")
     initialHTML = getInitialHTML(fileName)
     html += initialHTML + '\n'
     for obj in listOfObjects:
@@ -23,7 +22,7 @@ def exportToHTML(fileName, listOfObjects):
     f.close()
 
 def exportChildHTML(obj, level=1):
-    if obj.childObjects == []:
+    if type(obj) != Div or obj.childObjects == []:
         newHTML = getPartialHTMLLine(obj)
         return '\t'*level+newHTML
     else:
@@ -42,7 +41,7 @@ def closeTags(html):
         numTabs = l.count("\t")
         line = l.strip()
         tag = line[1:(line.find(' '))]
-        if numTabs > prevNumTabs:
+        if numTabs > prevNumTabs and l.count('/') == 0:
             yetToClose.append((tag, numTabs))
         if numTabs < prevNumTabs:
             while(len(yetToClose) > 0):
@@ -59,7 +58,7 @@ def getPartialHTMLLine(obj):
         newHTML = f'\t<p class={obj.cssClass}>{obj.content}\n'
     elif isinstance(obj, Img):
         numImg = countImages() + 1
-        imagePath = f'image{numImg}.{obj.image.format}'
+        imagePath = f'image{numImg}.{obj.imgFormat}'
         obj.image.save('export/' + imagePath)
         newHTML = f'\t<img class={obj.cssClass} src="{imagePath}"/>\n'
     return newHTML
@@ -73,7 +72,7 @@ def getHTMLLine(obj):
         return newP
     elif isinstance(obj, Img):
         numImg = countImages() + 1
-        imagePath = f'image{numImg}.{obj.image.format}'
+        imagePath = f'image{numImg}.{obj.imgFormat}'
         obj.image.save('export/' + imagePath)
         newImg = f'\t\t<img class={obj.cssClass} src="{imagePath}"/>\n'
         return newImg
@@ -152,11 +151,12 @@ def getCSSImgCode(cssClass, cssClassName):
     for prop in cssClass.__dict__:
         value = cssClass.__dict__[prop]
         if value != None:
-            if type(value) == int or type(value) == float:
-                cssCode += f'\t{prop}: {int(value)}px;\n'
-            elif type(prop) == str and prop.startswith("margin"):
+            print(prop, value)
+            if type(prop) == str and prop.startswith("margin"):
                 newProp = '-'.join(prop.split('_'))
                 cssCode += f'\t{newProp}: {int(value)}px;\n'
+            elif type(value) == int or type(value) == float:
+                cssCode += f'\t{prop}: {int(value)}px;\n'
             else:
                 cssCode += f'\t{prop}: {value};\n'
     cssCode += '}\n'
