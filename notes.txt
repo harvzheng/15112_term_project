@@ -1,8 +1,5 @@
 layers up + down
-bugs with colorpicker and image alignment
 icon for rectangle tool isn't best
-debug changing font size/family
-debug resizing text
 separating icons in top right
 help splash screen
 add help/splash screen
