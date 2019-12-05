@@ -30,20 +30,30 @@ import os
 
 class HelpMode(Mode):
     def appStarted(mode):
-        self.count = 0
+        mode.count = 0
+        mode.slides = []
+        for imgName in sorted(os.listdir('assets/help')):
+            url = 'assets/help/' + imgName
+            img = mode.loadImage(url)
+            mode.slides.append(img)
+
     def redrawAll(mode, canvas):
-        pass
+        canvas.create_image(mode.width/2, mode.height/2, image=ImageTk.PhotoImage(mode.slides[mode.count%len(mode.slides)]))
+
     def keyPressed(mode, event):
         if event.key == "Left":
-            self.count -= 1
+            mode.count -= 1
         elif event.key == "Right":
-            self.count += 1
+            mode.count += 1
         else:
             mode.app.setActiveMode(mode.app.editorMode)
 
 class SplashScreenMode(Mode):
     def redrawAll(mode, canvas):
-        pass
+        canvas.create_text(mode.width/2, 50, text="WebSketch", font="Helvetica 72 italic", anchor="center")
+        canvas.create_text(mode.width/2, 300, text="Press any key to get started.", font="Helvetica 48", anchor="center")
+        canvas.create_text(mode.width/2, 500, text="Press h for help at any point.", font="Helvetica 48", anchor="center")
+
     def keyPressed(mode, event):
         if event.key == "h":
             mode.app.setActiveMode(mode.app.helpMode)
@@ -113,10 +123,17 @@ class EditorMode(Mode):
             button = Button(0, newY, mode.toolBarMargin, toolButtonHeight, icon, mode.toolsDict[key], key)
             mode.toolsBar.append(button)
             newY += 50
-        makeStaticBtn = Button(0, 600, 50, 50, None, "Make\nStatic", "makeStatic")
+
+        makeLayerUp = Button(0, 450, mode.toolBarMargin, 50, None, "Layer\nUp", "moveLayerUp")
+        makeLayerDown = Button(0, 525, mode.toolBarMargin, 50, None, "Layer\nDown", "moveLayerDown")
+        makeLayerUp.fontSize = 14
+        makeLayerDown.fontSize = 14
+        mode.toolsBar.append(makeLayerUp)
+        mode.toolsBar.append(makeLayerDown)
+        makeStaticBtn = Button(0, 600, mode.toolBarMargin, 50, None, "Make\nStatic", "makeStatic")
         makeStaticBtn.fontSize = 14
         mode.toolsBar.append(makeStaticBtn)
-        makeAbsoluteBtn = Button(0, 675, 50, 50, None, "Make\nAbsolute", "makeAbsolute")
+        makeAbsoluteBtn = Button(0, 675, mode.toolBarMargin, 50, None, "Make\nAbsolute", "makeAbsolute")
         makeAbsoluteBtn.fontSize = 14
         mode.toolsBar.append(makeAbsoluteBtn)
         colorPalette = ColorPalette(0, 0, mode.toolBarMargin, mode.toolBarMargin, "Set\nColor", "colorPicker", mode.curColor)
@@ -280,16 +297,35 @@ class EditorMode(Mode):
                     mode.makeComponentStatic()
                 elif button.functionName == "makeAbsolute":
                     mode.makeComponentAbsolute()
+                elif len(mode.selectedObjs) == 1 and button.functionName == "moveLayerUp":
+                    mode.moveLayerUp()
+                elif len(mode.selectedObjs) == 1 and button.functionName == "moveLayerDown":
+                    mode.moveLayerDown()
+
+    def moveLayerDown(mode):
+        if mode.selectedObjs[0] in mode.objects:
+            obj = mode.selectedObjs[0]
+            newIndex = mode.objects.index(obj) - 1
+            if newIndex >= 0:
+                mode.objects.remove(obj)
+                mode.objects.insert(newIndex, obj)
+
+    def moveLayerUp(mode):
+        if mode.selectedObjs[0] in mode.objects:
+            obj = mode.selectedObjs[0]
+            newIndex = mode.objects.index(obj) + 1
+            if len(mode.objects) > newIndex:
+                mode.objects.remove(obj)
+                mode.objects.insert(newIndex, obj)
+
 
     def makeComponentAbsolute(mode):
         if len(mode.selectedObjs) == 1:
             if mode.selectedObjs[0] in mode.childObjects:
                 childObj = mode.selectedObjs[0]
                 childObj.parentObject.childObjects.remove(childObj)    
-                mode.objects.add(childObj)
+                mode.objects.append(childObj)
             mode.selectedObjs[0].static = False
-
-
 
     def childrenShareSpace(mode, childObj, parentObj):
         for child in parentObj.childObjects:
@@ -404,8 +440,8 @@ class EditorMode(Mode):
 
     def updateFontSize(mode):
         newFontSize = mode.getUserInput("What should the new font size be?")
-        if type(newFontSize) == int and newFontSize > 0:
-            mode.curFontSize = newFontSize
+        if newFontSize.isdigit() and int(newFontSize) > 0:
+            mode.curFontSize = int(newFontSize)
         else:
             mode.displayError("Not a valid font size")
 
@@ -430,6 +466,8 @@ class EditorMode(Mode):
         for obj in mode.selectedObjs:
             obj.font_family = mode.curFont
             obj.font_size = mode.curFontSize
+            obj.height = mode.curFontSize * (obj.content.count("\n")+1)
+            obj.width = mode.curFontSize / 2 * len(obj.content)
         mode.setTextButtonsInfo()
 
     def exportCanvas(mode):
@@ -471,9 +509,10 @@ class EditorMode(Mode):
     def getMargins(mode, obj):
         if obj.parentObject == None:
             if type(obj) == Img:
-                return mode.getCoordsOfImg(obj)
+                objX, objY = mode.getCoordsOfImg(obj)
+                return (objX-mode.toolBarMargin, objY-mode.alignBarMargin)
             else:
-                return (obj.x, obj.y)
+                return (obj.x-mode.toolBarMargin, obj.y-mode.alignBarMargin)
         else:
             childObjects = obj.parentObject.childObjects
             if type(obj) == Img:
@@ -535,37 +574,27 @@ class EditorMode(Mode):
         newPosition = None # x coord or y coord, depending on which align was selected
         for obj in mode.selectedObjs:
             if type(obj) == Img:
-                if align == 0: 
-                    obj.x = newPosition + obj.width/2
-                elif align == 1:
-                    obj.x = newPosition
-                elif align == 2:
-                    obj.x = newPosition - obj.width/2
-                elif align == 3:
-                    obj.y = newPosition + obj.width/2
-                elif align == 4:
-                    obj.y = newPosition
-                else:
-                    obj.y = newPosition - obj.height/2
+                objX, objY = mode.getCoordsOfImg(obj)
             else:
-                if align == 0: 
-                    toAlignPositions.append(obj.x)
-                    newPosition = min(toAlignPositions)
-                elif align == 1:
-                    toAlignPositions.append(obj.x + obj.width/2)
-                    newPosition = sum(toAlignPositions)/len(toAlignPositions)
-                elif align == 2:
-                    toAlignPositions.append(obj.x + obj.width)
-                    newPosition = max(toAlignPositions)
-                elif align == 3:
-                    toAlignPositions.append(obj.y)
-                    newPosition = min(toAlignPositions)
-                elif align == 4:
-                    toAlignPositions.append(obj.y + obj.height/2)
-                    newPosition = sum(toAlignPositions)/len(toAlignPositions)
-                else:
-                    toAlignPositions.append(obj.y + obj.height)
-                    newPosition = max(toAlignPositions)
+                objX, objY = obj.x, obj.y
+            if align == 0: 
+                toAlignPositions.append(objX)
+                newPosition = min(toAlignPositions)
+            elif align == 1:
+                toAlignPositions.append(objX + obj.width/2)
+                newPosition = sum(toAlignPositions)/len(toAlignPositions)
+            elif align == 2:
+                toAlignPositions.append(objX + obj.width)
+                newPosition = max(toAlignPositions)
+            elif align == 3:
+                toAlignPositions.append(objY)
+                newPosition = min(toAlignPositions)
+            elif align == 4:
+                toAlignPositions.append(objY + obj.height/2)
+                newPosition = sum(toAlignPositions)/len(toAlignPositions)
+            else:
+                toAlignPositions.append(objY + obj.height)
+                newPosition = max(toAlignPositions)
         mode.alignSelectedObjectPositions(newPosition, align)
 
     def alignSelectedObjectPositions(mode, newPosition, align):
@@ -806,7 +835,11 @@ class EditorMode(Mode):
         canvas.create_rectangle(0, 0, mode.toolBarMargin, mode.height, fill="gray", width=0)
         canvas.create_rectangle(1, 10, mode.toolBarMargin, 40, fill=mode.curColor)
         for button in mode.toolsBar:
-            mode.drawButton(canvas, button)
+            if type(button.functionName) == str and button.functionName.startswith("moveLayer"):
+                if len(mode.selectedObjs) == 1:    
+                    mode.drawButton(canvas, button)
+            else:
+                mode.drawButton(canvas, button)
 
     def drawButton(mode, canvas, button):
         canvas.create_rectangle(button.x, button.y, button.x+button.width, button.y+button.height, fill=button.fill)
@@ -873,6 +906,6 @@ class MyModalApp(ModalApp):
         app.splashScreenMode = SplashScreenMode()
         app.editorMode = EditorMode()
         app.helpMode = HelpMode()
-        app.setActiveMode(app.editorMode)
+        app.setActiveMode(app.splashScreenMode)
 
 newApp = MyModalApp(width=1440, height=900)
