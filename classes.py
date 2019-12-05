@@ -52,13 +52,14 @@ class CSSClass(object):
         self.position = position
         self.margin_left = margin_left
         self.margin_top = margin_top
+        # self.display = "flex"
         if self not in CSSClass.pastClasses:
             CSSClass.pastClasses.add(self)
             newVal = "class" + str(len(CSSClass.classes))
             CSSClass.classes[self] = newVal
 
     def getImportantAttributes(self):
-        return (self.color, self.height, self.width, self.left, self.top)
+        return (self.color, self.height, self.width, self.left, self.top, self.margin_left, self.margin_top,)
 
     def __eq__(self, other):
         return (isinstance(other, CSSClass) and 

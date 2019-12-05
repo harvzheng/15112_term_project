@@ -10,7 +10,7 @@ def exportToHTML(fileName, listOfObjects):
     html += initialHTML + '\n'
     for obj in listOfObjects:
         if type(obj) == Div and obj.childObjects != []:
-            html += getPartialHTMLLine(obj)
+            html += '\t' + getPartialHTMLLine(obj)
             html += exportChildHTML(obj)
         else:
             html += getHTMLLine(obj)
@@ -35,27 +35,25 @@ def closeTags(html):
     newHTML = ""
     prevNumTabs = 0
     yetToClose = []
-    print(html.splitlines())
     for l in html.splitlines():
-        newHTML += l + '\n'
         numTabs = l.count("\t")
         line = l.strip()
         tag = line[1:(line.find(' '))]
-        if numTabs > prevNumTabs and l.count('/') == 0:
+        if numTabs > prevNumTabs and l.count('<') > 0 and l.count('/') == 0:
             yetToClose.append((tag, numTabs))
         if numTabs < prevNumTabs:
             while(len(yetToClose) > 0):
                 tagToClose = yetToClose.pop()
                 newHTML += '\t'*tagToClose[1] + '</' + tagToClose[0] + '>\n'
+        newHTML += l + '\n'
         prevNumTabs = numTabs
-    print(newHTML)
     return newHTML
 
 def getPartialHTMLLine(obj):
     if isinstance(obj, Div):
         newHTML = f'\t<div class={obj.cssClass}>\n'
     elif isinstance(obj, Text):
-        newHTML = f'\t<p class={obj.cssClass}>{obj.content}\n'
+        newHTML = f'\t<span class={obj.cssClass}>{obj.content}</span>\n'
     elif isinstance(obj, Img):
         numImg = countImages() + 1
         imagePath = f'image{numImg}.{obj.imgFormat}'
@@ -68,7 +66,7 @@ def getHTMLLine(obj):
         newDiv = f'\t\t<div class={obj.cssClass}></div>\n'
         return newDiv
     elif isinstance(obj, Text):
-        newP = f'\t\t<p class={obj.cssClass}>{obj.content}</p>\n'
+        newP = f'\t\t<span class={obj.cssClass}>{obj.content}</span>\n'
         return newP
     elif isinstance(obj, Img):
         numImg = countImages() + 1
@@ -81,17 +79,17 @@ def countImages():
     numImages = 0
     if os.path.isdir('export'):
         for filename in os.listdir('export'):
-            if (os.path.isfile('export/' + filename) and 
-                filename.endswith('jpg') or filename.endswith('png') or filename.endswith('jpeg')):
+            filename = filename.lower()
+            if filename.endswith('jpg') or filename.endswith('png') or filename.endswith('jpeg'):
                 numImages += 1
     return numImages
 
 def exportToCSS(backgroundColor, dictOfClasses):
     css = open("export/style.css", "w")
     bgColor = "body {\n\tbackground-color: " + backgroundColor + ";\n}\n"
-    initialP = "p {\n\tmargin: 0;\n}\n"
+    initialSpan = "span {\n\tdisplay: inline-block;\n}\n"
     css.write(bgColor)
-    css.write(initialP)
+    css.write(initialSpan)
     for cssClass in dictOfClasses:
         cssCode = ""
         if cssClass.color != None and cssClass.height != None:
@@ -120,7 +118,7 @@ def getCSSDivCode(cssClass, cssClassName):
                 cssCode += f'\t{prop}: {int(value)}px;\n'
             else:
                 cssCode += f'\t{prop}: {value};\n'
-    cssCode += '}\n'
+    cssCode += '\tdisplay:flex\n}\n'
     return cssCode
 
 def getCSSTextCode(cssClass, cssClassName):
@@ -151,7 +149,6 @@ def getCSSImgCode(cssClass, cssClassName):
     for prop in cssClass.__dict__:
         value = cssClass.__dict__[prop]
         if value != None:
-            print(prop, value)
             if type(prop) == str and prop.startswith("margin"):
                 newProp = '-'.join(prop.split('_'))
                 cssCode += f'\t{newProp}: {int(value)}px;\n'
