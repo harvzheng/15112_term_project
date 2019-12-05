@@ -302,15 +302,15 @@ class EditorMode(Mode):
             for obj in lastMove[1]:
                 obj.x -= lastMove[2][0]
                 obj.y -= lastMove[2][1]
-            if type(lastMove[1]) == Div and lastMove[1].childObjects != []:
-                mode.moveChildren(lastMove[1], lastMove[2][0], lastMove[2][1])
+                if type(obj) == Div and obj.childObjects != []:
+                    mode.moveChildren(obj, -lastMove[2][0], -lastMove[2][1])
         elif lastMove[0] == "change bg":
             mode.bgColor = lastMove[1]
         elif lastMove[0] == "resize":
             lastMove[1].width -= lastMove[2][0]
             lastMove[1].height -= lastMove[2][1]
             if type(lastMove[1]) == Div and lastMove[1].childObjects != []:
-                mode.resizeChildren(lastMove[1], lastMove[2][0], lastMove[2][1])
+                mode.resizeChildren(lastMove[1], -lastMove[2][0], -lastMove[2][1])
         elif lastMove[0] == "static":
             mode.makeComponentAbsolute(lastMove[1][0])
         elif lastMove[0] == "absolute":
@@ -358,15 +358,15 @@ class EditorMode(Mode):
             for obj in nextMove[1]:
                 obj.x += nextMove[2][0]
                 obj.y += nextMove[2][1]
-            if type(nextMove[1]) == Div and nextMove[1].childObjects != []:
-                    mode.moveChildren(nextMove[1], -nextMove[2][0], -nextMove[2][1])
+                if type(obj) == Div and obj.childObjects != []:
+                    mode.moveChildren(obj, nextMove[2][0], nextMove[2][1])
         elif nextMove[0] == "change bg":
             mode.bgColor = lastMove[2]
         elif nextMove[0] == "resize":
             nextMove[1].width += nextMove[2][0]
             nextMove[1].height += nextMove[2][1]
             if type(nextMove[1]) == Div and nextMove[1].childObjects != []:
-                mode.resizeChildren(nextMove[1], -nextMove[2][0], -nextMove[2][1])
+                mode.resizeChildren(nextMove[1], nextMove[2][0], nextMove[2][1])
         elif nextMove[0] == "up layer":
             mode.moveLayerUp(nextMove[1])
         elif nextMove[0] == "down layer":
@@ -507,7 +507,7 @@ class EditorMode(Mode):
         mode.resizing = False
 
     def deleteChildren(mode, obj):
-        if type(obj) != Div or obj.childObjects != []:
+        if type(obj) != Div or obj.childObjects != [] and obj in mode.childObjects:
             mode.childObjects.remove(obj)
         else:
             for child in obj.childObjects:
@@ -670,6 +670,7 @@ class EditorMode(Mode):
         if obj in mode.childObjects:
             obj.parentObject.childObjects.remove(obj)    
             mode.objects.append(obj)
+            mode.childObjects.remove(obj)
         obj.static = False
 
     def childrenShareSpace(mode, childObj, parentObj):
