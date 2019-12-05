@@ -1,8 +1,5 @@
 # TODO
-# debug
 # fix undo/redo
-# fix selected object move
-# add help screen
 
 ############################################################
 # Citations:
@@ -61,6 +58,10 @@ class SplashScreenMode(Mode):
             mode.app.setActiveMode(mode.app.editorMode)
 
 class EditorMode(Mode):
+    ######################################################
+    # Model
+    ######################################################
+    # Setting Buttons
     def setAlignButtons(mode):
         mode.aligns = {0: "left", 1: "center hori", 2: "right", 3: "top", 4: "center vert", 5: "bottom"}
         mode.alignBarButtons = []
@@ -139,6 +140,7 @@ class EditorMode(Mode):
         colorPalette = ColorPalette(0, 0, mode.toolBarMargin, mode.toolBarMargin, "Set\nColor", "colorPicker", mode.curColor)
         mode.toolsBar.append(colorPalette)
 
+    # setting other stuff
     def initTextProps(mode):
         mode.curFont = "Helvetica"
         mode.curFontSize = 14
@@ -166,6 +168,8 @@ class EditorMode(Mode):
         mode.childObjects = []
         mode.startX = 0
         mode.startY = 0
+        mode.initialX = 0
+        mode.initialY = 0
         mode.startItemXs = []
         mode.startItemYs = []
         mode.curDiv = None
@@ -179,6 +183,11 @@ class EditorMode(Mode):
         mode.mouseX = 0
         mode.mouseY = 0
 
+######################################################
+# Controller
+######################################################
+
+    # mouse functions
     def mouseMoved(mode, event):
         mode.updateMouse(event.x, event.y)
 
@@ -186,6 +195,73 @@ class EditorMode(Mode):
         mode.mouseX = x
         mode.mouseY = y
 
+    def mousePressed(mode, event):
+        if event.x < mode.toolBarMargin and event.x > 0:
+            mode.findSelectedTool(event.x, event.y)
+        elif ((event.x > mode.toolBarMargin and event.x <= mode.width) and
+                (event.y > 0 and event.y < mode.alignBarMargin)):
+            mode.findSelectedAlign(event.x, event.y)
+        elif mode.curTool == 0 and not mode.selectedObjectClicked(event.x, event.y):
+            mode.findClickedObject(event.x, event.y)
+        elif mode.curTool == 1:
+            mode.startX = event.x
+            mode.startY = event.y
+            mode.curDiv = Div(mode.startX, mode.startY, 0, 0, mode.curColor)
+        elif mode.curTool == 2:
+            content = mode.getUserInput("Input text")
+            if content != None:
+                textHeight = mode.curFontSize * (content.count("\n")+1)
+                textWidth = mode.curFontSize / 2 * len(content)
+                newText = Text(event.x, event.y, textWidth, textHeight, content, mode.curColor, mode.curFont, mode.curFontSize)
+                mode.objects.append(newText)
+                mode.moves.append(("add", newText))
+        elif mode.curTool == 3:
+            mode.placeImage(event.x, event.y)
+        elif mode.curTool == 4:
+            mode.moves.append(("change bg", mode.bgColor, mode.curColor))
+            mode.bgColor = mode.curColor
+
+    def mouseDragged(mode, event):
+        mode.updateMouse(event.x, event.y)
+        if mode.curTool == 0 and mode.resizing and len(mode.selectedObjs) != 0:
+            mode.resizeSelection(event.x, event.y)
+        elif (mode.curTool == 0 and len(mode.selectedObjs) != 0 and event.y > mode.alignBarMargin
+                    and not mode.selectedHasStatic()):
+            mode.moveSelectedObjects(event.x, event.y)
+        elif mode.curTool == 1 and mode.curDiv != None:
+            width = event.x - mode.startX
+            height = event.y - mode.startY
+            mode.curDiv.height = height
+            mode.curDiv.width = width
+
+    def mouseReleased(mode, event):
+        if mode.curTool == 0 and mode.resizing:
+            mode.moves.append(("resize", mode.selectedObjs[0], (event.x - mode.initialX, event.y - mode.initialY)))
+            mode.resizing = False
+            if len(mode.selectedObjs) > 0 and type(mode.selectedObjs[0]) == Img:
+                obj = mode.selectedObjs[0]
+                oldFormat = obj.image.format
+                scaleFactor = max(obj.image.size)/max(obj.fullSize.size)
+                obj.image = mode.scaleImage(obj.fullSize, scaleFactor)
+                obj.image.format = oldFormat
+        elif mode.curTool == 0 and len(mode.selectedObjs) != 0:
+            move = ["move"]
+            for i in range(len(mode.selectedObjs)):
+                obj = mode.selectedObjs[i]
+                move.append((obj, (mode.startItemXs[i], mode.startItemYs[i]), (obj.x, obj.y)))
+            if len(mode.moves) == 0 or mode.moves[-1] != move:
+                mode.moves.append(move)
+        elif mode.curTool == 1 and mode.curDiv != None and mode.curDiv.height > 5 and mode.curDiv.width > 5:
+            x0, y0 = mode.curDiv.x, mode.curDiv.y
+            x1 = x0 + mode.curDiv.width
+            y1 = y0 + mode.curDiv.height
+            newDiv = Div(min(x0, x1), min(y0, y1), 
+                            abs(mode.curDiv.width), abs(mode.curDiv.height), mode.curColor)
+            mode.objects.append(newDiv)
+            mode.moves.append(("add", newDiv))
+            mode.curDiv = None
+
+    # keyboard functions
     def keyPressed(mode, event):
         if event.key == "c":
             mode.curTool = 0
@@ -202,12 +278,15 @@ class EditorMode(Mode):
         elif event.key == "s":
             mode.shiftHeld = not mode.shiftHeld
         elif event.key == "Z":
+            mode.clearSelection()
             mode.undo()
         elif event.key == "Y":
+            mode.clearSelection()
             mode.redo()
         elif event.key == "h":
             mode.app.setActiveMode(mode.app.helpMode)
 
+    # undo/redo
     def undo(mode):
         if len(mode.moves) == 0:
             return
@@ -223,6 +302,21 @@ class EditorMode(Mode):
                 move[0].y = move[1][1]
         elif lastMove[0] == "change bg":
             mode.bgColor = lastMove[1]
+        elif lastMove[0] == "resize":
+            lastMove[1].width -= lastMove[2][0]
+            lastMove[1].height -= lastMove[2][1]
+            if type(lastMove[1]) == Div and lastMove[1].childObjects != []:
+                mode.resizeChildren(lastMove[1], lastMove[2][0], lastMove[2][1])
+        elif lastMove[0] == "static":
+            pass
+        elif lastMove[0] == "absolute":
+            pass
+        elif lastMove[0] == "change font":
+            pass
+        elif lastMove[0] == "change font size":
+            pass
+        elif lastMove[0] == "change text":
+            pass
 
     def redo(mode):
         if len(mode.nextMoves) == 0:
@@ -237,54 +331,17 @@ class EditorMode(Mode):
             for move in nextMove[1:]:
                 move[0].x = move[2][0]
                 move[0].y = move[2][1]
-    
-    def detectResizeClick(mode, x, y):
-        obj = mode.selectedObjs[0]
-        if type(obj) == Img:
-            objX, objY = mode.getCoordsOfImg(obj)
-        else:
-            objX, objY = obj.x, obj.y
-        if type(obj) != Text:
-            resizeClick = ((objX+obj.width-5 < x and objX+obj.width+5 > x) and (objY+obj.height-5 < y and objY+obj.height+5 > y))
-            return resizeClick
+        elif lastMove[0] == "change bg":
+            pass
+        elif nextMove[0] == "resize":
+            pass
 
-    def checkObjectBounds(mode, obj, x, y):
-        if type(obj) == Img:
-            objX, objY = mode.getCoordsOfImg(obj)
-        else:
-            objX, objY = obj.x, obj.y
-        return (((objX < x and (objX + obj.width) > x) or
-                    (objX > x and (objX + obj.width) < x)) and
-                    ((objY < y and (objY + obj.height) > y) or
-                    (objY > y and (objY + obj.height) < y)))
-
-    def addClickedObjects(mode, obj, x, y):
-        if mode.checkObjectBounds(obj, x, y):
-            if mode.shiftHeld:
-                mode.selectedObjs.append(obj)
-                return True
-            else:
-                mode.selectedObjs = [obj]
-                return True
-
-    def findClickedObject(mode, x, y):
-        if len(mode.selectedObjs) == 1 and type(mode.selectedObjs[0]) != Text and mode.detectResizeClick(x, y):
-            mode.resizing = True
-            mode.startX = x
-            mode.startY = y
-        else:
-            reversedObjects = list(reversed(mode.objects))
-            allObjects =  mode.childObjects + reversedObjects
-            for obj in allObjects:
-                if mode.addClickedObjects(obj, x, y):
-                    break
-            mode.startItemXs = []
-            mode.startItemYs = []
-            mode.startX = x
-            mode.startY = y
-            for obj in mode.selectedObjs:
-                mode.startItemXs.append(obj.x)
-                mode.startItemYs.append(obj.y)
+    # tool helper functions
+    def pickNewColor(mode):
+        newColor = colorchooser.askcolor(initialcolor=mode.curColor)
+        if newColor != (None, None):
+            mode.curColor = newColor[-1]
+        mode.toolsBar[-1].fill = mode.curColor
 
     def findSelectedTool(mode, x, y):
         for button in mode.toolsBar:
@@ -302,6 +359,16 @@ class EditorMode(Mode):
                 elif len(mode.selectedObjs) == 1 and button.functionName == "moveLayerDown":
                     mode.moveLayerDown()
 
+    def detectResizeClick(mode, x, y):
+        obj = mode.selectedObjs[0]
+        if type(obj) == Img:
+            objX, objY = mode.getCoordsOfImg(obj)
+        else:
+            objX, objY = obj.x, obj.y
+        if type(obj) != Text:
+            resizeClick = ((objX+obj.width-5 < x and objX+obj.width+5 > x) and (objY+obj.height-5 < y and objY+obj.height+5 > y))
+            return resizeClick
+
     def moveLayerDown(mode):
         if mode.selectedObjs[0] in mode.objects:
             obj = mode.selectedObjs[0]
@@ -318,7 +385,169 @@ class EditorMode(Mode):
                 mode.objects.remove(obj)
                 mode.objects.insert(newIndex, obj)
 
+    # selection helper functions
+    def getCoordsOfImg(mode, img):
+        return (img.x-img.width/2, img.y-img.height/2)
 
+    def addClickedObjects(mode, obj, x, y):
+        if mode.checkObjectBounds(obj, x, y):
+            if mode.shiftHeld:
+                mode.selectedObjs.append(obj)
+                return True
+            else:
+                mode.selectedObjs = [obj]
+                return True
+
+    def checkObjectBounds(mode, obj, x, y):
+        if type(obj) == Img:
+            objX, objY = mode.getCoordsOfImg(obj)
+        else:
+            objX, objY = obj.x, obj.y
+        return (((objX < x and (objX + obj.width) > x) or
+                    (objX > x and (objX + obj.width) < x)) and
+                    ((objY < y and (objY + obj.height) > y) or
+                    (objY > y and (objY + obj.height) < y)))
+
+    def findClickedObject(mode, x, y):
+        if len(mode.selectedObjs) == 1 and type(mode.selectedObjs[0]) != Text and mode.detectResizeClick(x, y):
+            mode.resizing = True
+            mode.startX = x
+            mode.startY = y
+            mode.initialX = x
+            mode.initialY = y
+        else:
+            reversedObjects = list(reversed(mode.objects))
+            allObjects =  mode.childObjects + reversedObjects
+            for obj in allObjects:
+                if mode.addClickedObjects(obj, x, y):
+                    break
+            mode.startItemXs = []
+            mode.startItemYs = []
+            mode.startX = x
+            mode.startY = y
+            for obj in mode.selectedObjs:
+                mode.startItemXs.append(obj.x)
+                mode.startItemYs.append(obj.y)
+
+    def clearSelection(mode):
+        mode.selectedObjs = []
+        mode.startItemXs = []
+        mode.startItemYs = []
+        mode.resizing = False
+
+    def deleteSelectedObject(mode):
+        for obj in mode.selectedObjs:
+            mode.moves.append(("delete", obj))
+            mode.objects.remove(obj)
+            mode.clearSelection()
+
+    def selectedHasText(mode):
+        for obj in mode.selectedObjs:
+            if type(obj) != Text:
+                return False
+        return True
+
+    def selectedHasDiv(mode):
+        for obj in mode.selectedObjs:
+            if type(obj) == Div:
+                return True
+        return False
+
+    def selectedHasStatic(mode):
+        for obj in mode.selectedObjs:
+            if obj.static:
+                return True
+        return False
+
+    def selectedObjectClicked(mode, x, y):
+        for obj in mode.selectedObjs:
+            if type(obj) == Img:
+                objX, objY = mode.getCoordsOfImg(obj)
+            else:
+                objX, objY = obj.x, obj.y
+            if ((objX < x and objY < y) and
+                (objX + obj.width > x and objY + obj.height > y)):
+                return True
+        return False
+
+    def placeImage(mode, x, y):
+        filetypes=[('JPEG', 'jpeg'), ('JPG', 'jpg'), ('PNG', 'png')]
+        imagePath = filedialog.askopenfilename( initialdir=os.getcwd(),
+                                    title="Please select a file:",
+                                    filetypes=filetypes)
+        if os.path.isfile(imagePath):
+                image = mode.loadImage(imagePath)
+                imgWidth, imgHeight = image.size
+                newImage = mode.scaleImage(image, 500/(max(imgWidth, imgHeight)))
+                newImage.format = image.format
+                newImg = Img(x, y, 500/(max(imgWidth, imgHeight)), newImage, image)
+                mode.objects.append(newImg)
+                mode.moves.append(("add", newImg))
+
+    # move helper functions
+    def moveChildren(mode, obj, dx, dy):
+        if type(obj) != Div or obj.childObjects == []:
+            obj.x += dx
+            obj.y += dy
+        else:
+            for child in obj.childObjects:
+                mode.moveChildren(child, dx, dy)
+
+    def moveSelectedObjects(mode, x, y):
+        dx = x - mode.startX
+        dy = y - mode.startY
+        for i in range(len(mode.selectedObjs)):
+            obj = mode.selectedObjs[i]
+            obj.x += dx
+            obj.y += dy
+            if type(obj) == Div and obj.childObjects != []:
+                mode.moveChildren(obj, dx, dy)
+        mode.startX = x
+        mode.startY = y
+
+    # resize helper functions
+
+    # add initial item dimensions of selected objects; if a violation occurs, reset to initial dimensions
+    def resizeChildren(mode, obj, dx, dy):
+        if type(obj) == Img or (type(obj) == Div and obj.childObjects == []):
+            obj.width +=  dx
+            obj.height += dy
+        elif type(obj) == Text:
+            pass
+        else:
+            for child in obj.childObjects:
+                mode.resizeChildren(child, dx, dy)
+
+    def resizeSelection(mode, x, y):
+        obj = mode.selectedObjs[0]
+        if not obj.static:
+            if type(obj) != Img:
+                dx = x - mode.startX
+                dy = y - mode.startY 
+                obj.width +=  dx
+                obj.height += dy
+                if type(obj) == Div and obj.childObjects != []:
+                    mode.resizeChildren(obj, dx, dy)
+                mode.startX = x
+                mode.startY = y
+            else:
+                width, height = obj.image.size
+                dx = x - mode.startX
+                dy = y - mode.startY
+                oldFormat = obj.image.format
+                if max(width, height) == height and (height+dy) > 5:
+                    obj.image = mode.scaleImage(obj.image, (obj.height+dy)/(obj.height))
+                    obj.width = (obj.height+dy)/(obj.height)*width
+                    obj.height += dy
+                elif max(width, height) == width and (width+dx) > 5:
+                    obj.image = mode.scaleImage(obj.image, (obj.width+dx)/(obj.width))
+                    obj.height = (obj.width+dx)/(obj.width)*height
+                    obj.width += dx
+                obj.image.format = oldFormat
+                mode.startX = x
+                mode.startY = y
+
+    # static/absolute helper functions
     def makeComponentAbsolute(mode):
         if len(mode.selectedObjs) == 1:
             if mode.selectedObjs[0] in mode.childObjects:
@@ -361,8 +590,6 @@ class EditorMode(Mode):
                 # checking to see if all children are in the same row
                 return True
         return False
-    def getCoordsOfImg(mode, img):
-        return (img.x-img.width/2, img.y-img.height/2)
 
     def makeComponentStatic(mode):
         if len(mode.selectedObjs) == 1:
@@ -393,11 +620,80 @@ class EditorMode(Mode):
             mode.objects.remove(childObj)
         mode.selectedObjs = []
 
-    def pickNewColor(mode):
-        newColor = colorchooser.askcolor(initialcolor=mode.curColor)
-        if newColor != (None, None):
-            mode.curColor = newColor[-1]
-        mode.toolsBar[-1].fill = mode.curColor
+    # align helper functions
+    def alignSelectedObjects(mode, align):
+        toAlignPositions = []
+        newPosition = None # x coord or y coord, depending on which align was selected
+        for obj in mode.selectedObjs:
+            if type(obj) == Img:
+                objX, objY = mode.getCoordsOfImg(obj)
+            else:
+                objX, objY = obj.x, obj.y
+            if align == 0: 
+                toAlignPositions.append(objX)
+                newPosition = min(toAlignPositions)
+            elif align == 1:
+                toAlignPositions.append(objX + obj.width/2)
+                newPosition = sum(toAlignPositions)/len(toAlignPositions)
+            elif align == 2:
+                toAlignPositions.append(objX + obj.width)
+                newPosition = max(toAlignPositions)
+            elif align == 3:
+                toAlignPositions.append(objY)
+                newPosition = min(toAlignPositions)
+            elif align == 4:
+                toAlignPositions.append(objY + obj.height/2)
+                newPosition = sum(toAlignPositions)/len(toAlignPositions)
+            else:
+                toAlignPositions.append(objY + obj.height)
+                newPosition = max(toAlignPositions)
+        mode.alignSelectedObjectPositions(newPosition, align)
+
+    def alignSelectedObjectPositions(mode, newPosition, align):
+        for obj in mode.selectedObjs:
+            if type(obj) == Img:
+                if align == 0: 
+                    obj.x = newPosition + obj.width/2
+                elif align == 1:
+                    obj.x = newPosition
+                elif align == 2:
+                    obj.x = newPosition - obj.width/2
+                elif align == 3:
+                    obj.y = newPosition + obj.height/2
+                elif align == 4:
+                    obj.y = newPosition
+                else:
+                    obj.y = newPosition - obj.height/2
+            else:
+                if align == 0: 
+                    obj.x = newPosition
+                elif align == 1:
+                    obj.x = newPosition - obj.width/2
+                elif align == 2:
+                    obj.x = newPosition - obj.width
+                elif align == 3:
+                    obj.y = newPosition
+                elif align == 4:
+                    obj.y = newPosition - obj.height/2
+                else:
+                    obj.y = newPosition - obj.height
+
+    def findSelectedAlign(mode, x, y):
+        for button in mode.alignBarButtons:
+            if button.didHitButton(x, y):
+                if type(button.functionName) == int:
+                    mode.alignSelectedObjects(button.functionName)
+                elif button.functionName == "exportCanvas":
+                    mode.exportCanvas()
+                elif button.functionName == "saveCanvas":
+                    mode.saveCanvas()
+                elif button.functionName == "importCanvas":
+                    mode.importCanvas()
+        for button in mode.textToolButtons:
+            if button.didHitButton(x, y):
+                mode.handleTextButtonPress(button.functionName)
+
+    # export helper functions
 
     def saveCanvas(mode):
         filePath = filedialog.asksaveasfilename(initialdir=os.getcwd(),
@@ -415,21 +711,6 @@ class EditorMode(Mode):
             f = open(filePath, "rb")
             mode.objects = pickle.load(f)
             mode.selectedObjs = []
-
-    def findSelectedAlign(mode, x, y):
-        for button in mode.alignBarButtons:
-            if button.didHitButton(x, y):
-                if type(button.functionName) == int:
-                    mode.alignSelectedObjects(button.functionName)
-                elif button.functionName == "exportCanvas":
-                    mode.exportCanvas()
-                elif button.functionName == "saveCanvas":
-                    mode.saveCanvas()
-                elif button.functionName == "importCanvas":
-                    mode.importCanvas()
-        for button in mode.textToolButtons:
-            if button.didHitButton(x, y):
-                mode.handleTextButtonPress(button.functionName)
                 
     def updateFontFamily(mode):
         newFont = mode.getUserInput("What should the new font be?")
@@ -437,6 +718,7 @@ class EditorMode(Mode):
             mode.curFont = newFont
         else:
             mode.displayError("Font not available")
+        mode.updateSelected()
 
     def updateFontSize(mode):
         newFontSize = mode.getUserInput("What should the new font size be?")
@@ -444,6 +726,7 @@ class EditorMode(Mode):
             mode.curFontSize = int(newFontSize)
         else:
             mode.displayError("Not a valid font size")
+        mode.updateSelected()
 
     def displayError(mode, message):
         messagebox.showerror("Error", message)
@@ -451,13 +734,12 @@ class EditorMode(Mode):
     def handleTextButtonPress(mode, functionName):
         if functionName == "fontFamily":
             mode.updateFontFamily()
-            mode.updateSelected()
         elif functionName == "fontSize":
             mode.updateFontSize()
-            mode.updateSelected()
         elif functionName == "editText":
             newText = mode.getUserInput("New text?")
-            if type(newText) :
+            if type(newText) == str:
+                mode.moves.append(("change text", (mode.selectedObjs[0], newText)))
                 mode.selectedObjs[0].content = newText
                 mode.selectedObjs[0].height = (newText.count("\n")+1)* mode.selectedObjs[0].font_size/2
                 mode.selectedObjs[0].width = len(newText) * mode.selectedObjs[0].font_size
@@ -569,242 +851,10 @@ class EditorMode(Mode):
             newClass = CSSClass(height=obj.height, width=obj.width, left=x0, top=y0, position=position)
             obj.cssClass = CSSClass.classes[newClass]
 
-    def alignSelectedObjects(mode, align):
-        toAlignPositions = []
-        newPosition = None # x coord or y coord, depending on which align was selected
-        for obj in mode.selectedObjs:
-            if type(obj) == Img:
-                objX, objY = mode.getCoordsOfImg(obj)
-            else:
-                objX, objY = obj.x, obj.y
-            if align == 0: 
-                toAlignPositions.append(objX)
-                newPosition = min(toAlignPositions)
-            elif align == 1:
-                toAlignPositions.append(objX + obj.width/2)
-                newPosition = sum(toAlignPositions)/len(toAlignPositions)
-            elif align == 2:
-                toAlignPositions.append(objX + obj.width)
-                newPosition = max(toAlignPositions)
-            elif align == 3:
-                toAlignPositions.append(objY)
-                newPosition = min(toAlignPositions)
-            elif align == 4:
-                toAlignPositions.append(objY + obj.height/2)
-                newPosition = sum(toAlignPositions)/len(toAlignPositions)
-            else:
-                toAlignPositions.append(objY + obj.height)
-                newPosition = max(toAlignPositions)
-        mode.alignSelectedObjectPositions(newPosition, align)
 
-    def alignSelectedObjectPositions(mode, newPosition, align):
-        for obj in mode.selectedObjs:
-            if type(obj) == Img:
-                if align == 0: 
-                    obj.x = newPosition + obj.width/2
-                elif align == 1:
-                    obj.x = newPosition
-                elif align == 2:
-                    obj.x = newPosition - obj.width/2
-                elif align == 3:
-                    obj.y = newPosition + obj.height/2
-                elif align == 4:
-                    obj.y = newPosition
-                else:
-                    obj.y = newPosition - obj.height/2
-            else:
-                if align == 0: 
-                    obj.x = newPosition
-                elif align == 1:
-                    obj.x = newPosition - obj.width/2
-                elif align == 2:
-                    obj.x = newPosition - obj.width
-                elif align == 3:
-                    obj.y = newPosition
-                elif align == 4:
-                    obj.y = newPosition - obj.height/2
-                else:
-                    obj.y = newPosition - obj.height
-
-    def clearSelection(mode):
-        mode.selectedObjs = []
-        mode.startItemXs = []
-        mode.startItemYs = []
-        mode.resizing = False
-
-    def deleteSelectedObject(mode):
-        for obj in mode.selectedObjs:
-            mode.moves.append(("delete", obj))
-            mode.objects.remove(obj)
-            mode.clearSelection()
-
-    def moveChildren(mode, obj, dx, dy):
-        if type(obj) != Div or obj.childObjects == []:
-            obj.x += dx
-            obj.y += dy
-        else:
-            for child in obj.childObjects:
-                mode.moveChildren(child, dx, dy)
-
-    def moveSelectedObjects(mode, x, y):
-        dx = x - mode.startX
-        dy = y - mode.startY
-        for i in range(len(mode.selectedObjs)):
-            obj = mode.selectedObjs[i]
-            obj.x += dx
-            obj.y += dy
-            if type(obj) == Div and obj.childObjects != []:
-                mode.moveChildren(obj, dx, dy)
-        mode.startX = x
-        mode.startY = y
-
-    def selectedHasText(mode):
-        for obj in mode.selectedObjs:
-            if type(obj) != Text:
-                return False
-        return True
-
-    def selectedHasDiv(mode):
-        for obj in mode.selectedObjs:
-            if type(obj) == Div:
-                return True
-        return False
-
-    def selectedHasStatic(mode):
-        for obj in mode.selectedObjs:
-            if obj.static:
-                return True
-        return False
-
-    def selectedObjectClicked(mode, x, y):
-        for obj in mode.selectedObjs:
-            if type(obj) == Img:
-                objX, objY = mode.getCoordsOfImg(obj)
-            else:
-                objX, objY = obj.x, obj.y
-            if ((objX < x and objY < y) and
-                (objX + obj.width > x and objY + obj.height > y)):
-                return True
-        return False
-
-    def mousePressed(mode, event):
-        if event.x < mode.toolBarMargin and event.x > 0:
-            mode.findSelectedTool(event.x, event.y)
-        elif ((event.x > mode.toolBarMargin and event.x <= mode.width) and
-                (event.y > 0 and event.y < mode.alignBarMargin)):
-            mode.findSelectedAlign(event.x, event.y)
-        elif mode.curTool == 0 and not mode.selectedObjectClicked(event.x, event.y):
-            mode.findClickedObject(event.x, event.y)
-        elif mode.curTool == 1:
-            mode.startX = event.x
-            mode.startY = event.y
-            mode.curDiv = Div(mode.startX, mode.startY, 0, 0, mode.curColor)
-        elif mode.curTool == 2:
-            content = mode.getUserInput("Input text")
-            if content != None:
-                textHeight = mode.curFontSize * (content.count("\n")+1)
-                textWidth = mode.curFontSize / 2 * len(content)
-                newText = Text(event.x, event.y, textWidth, textHeight, content, mode.curColor, mode.curFont, mode.curFontSize)
-                mode.objects.append(newText)
-                mode.moves.append(("add", newText))
-        elif mode.curTool == 3:
-            mode.placeImage(event.x, event.y)
-        elif mode.curTool == 4:
-            mode.moves.append(("change bg", mode.bgColor, mode.curColor))
-            mode.bgColor = mode.curColor
-
-    def placeImage(mode, x, y):
-        filetypes=[('JPEG', 'jpeg'), ('PNG', 'png')]
-        imagePath = filedialog.askopenfilename( initialdir=os.getcwd(),
-                                    title="Please select a file:",
-                                    filetypes=filetypes)
-        if os.path.isfile(imagePath):
-                image = mode.loadImage(imagePath)
-                imgWidth, imgHeight = image.size
-                newImage = mode.scaleImage(image, 500/(max(imgWidth, imgHeight)))
-                newImage.format = image.format
-                newImg = Img(x, y, 500/(max(imgWidth, imgHeight)), newImage, image)
-                mode.objects.append(newImg)
-                mode.moves.append(("add", newImg))
-
-    # add initial item dimensions of selected objects; if a violation occurs, reset to initial dimensions
-    def resizeChildren(mode, obj, dx, dy):
-        if type(obj) == Img or (type(obj) == Div and obj.childObjects == []):
-            obj.width +=  dx
-            obj.height += dy
-        elif type(obj) == Text:
-            pass
-        else:
-            for child in obj.childObjects:
-                mode.resizeChildren(child, dx, dy)
-
-    def resizeSelection(mode, x, y):
-        obj = mode.selectedObjs[0]
-        if not obj.static:
-            if type(obj) != Img:
-                dx = x - mode.startX
-                dy = y - mode.startY 
-                obj.width +=  dx
-                obj.height += dy
-                if type(obj) == Div and obj.childObjects != []:
-                    mode.resizeChildren(obj, dx, dy)
-                mode.startX = x
-                mode.startY = y
-            else:
-                width, height = obj.image.size
-                dx = x - mode.startX
-                dy = y - mode.startY
-                oldFormat = obj.image.format
-                if max(width, height) == height and (height+dy) > 5:
-                    obj.image = mode.scaleImage(obj.image, (obj.height+dy)/(obj.height))
-                    obj.width = (obj.height+dy)/(obj.height)*width
-                    obj.height += dy
-                elif max(width, height) == width and (width+dx) > 5:
-                    obj.image = mode.scaleImage(obj.image, (obj.width+dx)/(obj.width))
-                    obj.height = (obj.width+dx)/(obj.width)*height
-                    obj.width += dx
-                obj.image.format = oldFormat
-                mode.startX = x
-                mode.startY = y
-
-    def mouseDragged(mode, event):
-        mode.updateMouse(event.x, event.y)
-        if mode.curTool == 0 and mode.resizing and len(mode.selectedObjs) != 0:
-            mode.resizeSelection(event.x, event.y)
-        elif (mode.curTool == 0 and len(mode.selectedObjs) != 0 and event.y > mode.alignBarMargin
-                    and not mode.selectedHasStatic()):
-            mode.moveSelectedObjects(event.x, event.y)
-        elif mode.curTool == 1 and mode.curDiv != None:
-            width = event.x - mode.startX
-            height = event.y - mode.startY
-            mode.curDiv.height = height
-            mode.curDiv.width = width
-
-    def mouseReleased(mode, event):
-        if mode.curTool == 0 and mode.resizing:
-            mode.resizing = False
-            if len(mode.selectedObjs) > 0 and type(mode.selectedObjs[0]) == Img:
-                obj = mode.selectedObjs[0]
-                oldFormat = obj.image.format
-                scaleFactor = max(obj.image.size)/max(obj.fullSize.size)
-                obj.image = mode.scaleImage(obj.fullSize, scaleFactor)
-                obj.image.format = oldFormat
-        elif mode.curTool == 0 and len(mode.selectedObjs) != 0:
-            move = ["move"]
-            for i in range(len(mode.selectedObjs)):
-                obj = mode.selectedObjs[i]
-                move.append((obj, (mode.startItemXs[i], mode.startItemYs[i]), (obj.x, obj.y)))
-            if len(mode.moves) == 0 or mode.moves[-1] != move:
-                mode.moves.append(move)
-        elif mode.curTool == 1 and mode.curDiv != None and mode.curDiv.height > 5 and mode.curDiv.width > 5:
-            x0, y0 = mode.curDiv.x, mode.curDiv.y
-            x1 = x0 + mode.curDiv.width
-            y1 = y0 + mode.curDiv.height
-            newDiv = Div(min(x0, x1), min(y0, y1), 
-                            abs(mode.curDiv.width), abs(mode.curDiv.height), mode.curColor)
-            mode.objects.append(newDiv)
-            mode.moves.append(("add", newDiv))
-            mode.curDiv = None
+######################################################
+# Views
+######################################################
 
     def drawDiv(mode, canvas, div):
         if type(div) == Div and div.childObjects == []:
@@ -908,4 +958,5 @@ class MyModalApp(ModalApp):
         app.helpMode = HelpMode()
         app.setActiveMode(app.splashScreenMode)
 
-newApp = MyModalApp(width=1440, height=900)
+if __name__ == "__main__":
+    newApp = MyModalApp(width=1440, height=900)
