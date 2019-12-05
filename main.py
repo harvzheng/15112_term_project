@@ -244,10 +244,10 @@ class EditorMode(Mode):
                 obj.image = mode.scaleImage(obj.fullSize, scaleFactor)
                 obj.image.format = oldFormat
         elif mode.curTool == 0 and len(mode.selectedObjs) != 0:
-            move = ["move"]
+            move = ("move", [], (event.x-mode.initialX, event.y-mode.initialY))
             for i in range(len(mode.selectedObjs)):
                 obj = mode.selectedObjs[i]
-                move.append((obj, (mode.startItemXs[i], mode.startItemYs[i]), (obj.x, obj.y)))
+                move[1].append(obj)
             if len(mode.moves) == 0 or mode.moves[-1] != move:
                 mode.moves.append(move)
         elif mode.curTool == 1 and mode.curDiv != None and mode.curDiv.height > 5 and mode.curDiv.width > 5:
@@ -294,11 +294,16 @@ class EditorMode(Mode):
         if lastMove[0] == "add":
             mode.objects.remove(lastMove[1])
         elif lastMove[0] == "delete":
-            mode.objects.append(lastMove[1])
+            if lastMove[1] == 1: # 1 for child, 0 for nonchild
+                mode.childObjects.append(lastMove[2])
+            elif lastMove[1] == 0:
+                mode.objects.append(lastMove[2])
         elif lastMove[0] == "move":
-            for move in lastMove[1:]:
-                move[0].x = move[1][0]
-                move[0].y = move[1][1]
+            for obj in lastMove[1]:
+                obj.x -= lastMove[2][0]
+                obj.y -= lastMove[2][1]
+            if type(lastMove[1]) == Div and lastMove[1].childObjects != []:
+                mode.moveChildren(lastMove[1], lastMove[2][0], lastMove[2][1])
         elif lastMove[0] == "change bg":
             mode.bgColor = lastMove[1]
         elif lastMove[0] == "resize":
@@ -307,10 +312,10 @@ class EditorMode(Mode):
             if type(lastMove[1]) == Div and lastMove[1].childObjects != []:
                 mode.resizeChildren(lastMove[1], lastMove[2][0], lastMove[2][1])
         elif lastMove[0] == "static":
-            mode.makeComponentAbsolute(lastMove[1])
+            mode.makeComponentAbsolute(lastMove[1][0])
         elif lastMove[0] == "absolute":
             if len(lastMove[1]) == 2:
-                parentObj.childObjects.append(lastMove[1][0])
+                lastMove[1][1].childObjects.append(lastMove[1][0])
                 lastMove[1][0].parentObject = lastMove[1][1]
             lastMove[1][0].static = True
             mode.childObjects.append(lastMove[1][0])
@@ -345,11 +350,16 @@ class EditorMode(Mode):
         if nextMove[0] == "add":
             mode.objects.append(nextMove[1])
         elif nextMove[0] == "delete":
-            mode.objects.remove(nextMove[1])
+            if nextMove[1] == 1: # 1 for child, 0 for nonchild
+                mode.childObjects.remove(nextMove[2])
+            elif nextMove[1] == 0:
+                mode.objects.remove(nextMove[2])
         elif nextMove[0] == "move":
-            for move in nextMove[1:]:
-                move[0].x = move[2][0]
-                move[0].y = move[2][1]
+            for obj in nextMove[1]:
+                obj.x += nextMove[2][0]
+                obj.y += nextMove[2][1]
+            if type(nextMove[1]) == Div and nextMove[1].childObjects != []:
+                    mode.moveChildren(nextMove[1], -nextMove[2][0], -nextMove[2][1])
         elif nextMove[0] == "change bg":
             mode.bgColor = lastMove[2]
         elif nextMove[0] == "resize":
@@ -363,13 +373,13 @@ class EditorMode(Mode):
             mode.moveLayerDown(nextMove[1])
         elif nextMove[0] == "static":
             if len(nextMove[1]) == 2:
-                parentObj.childObjects.append(nextMove[1][0])
+                nextMove[1][1].childObjects.append(nextMove[1][0])
                 nextMove[1][0].parentObject = nextMove[1][1]
             nextMove[1][0].static = True
             mode.childObjects.append(nextMove[1][0])
             mode.objects.remove(nextMove[1][0])
         elif nextMove[0] == "absolute":
-            mode.makeComponentAbsolute(nextMove[1])
+            mode.makeComponentAbsolute(nextMove[1][0])
         elif nextMove[0] == "change font":
             for obj in nextMove[1]:
                 obj.font_family = nextMove[2][1]
@@ -472,12 +482,12 @@ class EditorMode(Mode):
                     (objY > y and (objY + obj.height) < y)))
 
     def findClickedObject(mode, x, y):
+        mode.startX = x
+        mode.startY = y
+        mode.initialX = x
+        mode.initialY = y
         if len(mode.selectedObjs) == 1 and type(mode.selectedObjs[0]) != Text and mode.detectResizeClick(x, y):
             mode.resizing = True
-            mode.startX = x
-            mode.startY = y
-            mode.initialX = x
-            mode.initialY = y
         else:
             reversedObjects = list(reversed(mode.objects))
             allObjects =  mode.childObjects + reversedObjects
@@ -486,8 +496,6 @@ class EditorMode(Mode):
                     break
             mode.startItemXs = []
             mode.startItemYs = []
-            mode.startX = x
-            mode.startY = y
             for obj in mode.selectedObjs:
                 mode.startItemXs.append(obj.x)
                 mode.startItemYs.append(obj.y)
@@ -498,11 +506,25 @@ class EditorMode(Mode):
         mode.startItemYs = []
         mode.resizing = False
 
+    def deleteChildren(mode, obj):
+        if type(obj) != Div or obj.childObjects != []:
+            mode.childObjects.remove(obj)
+        else:
+            for child in obj.childObjects:
+                mode.deleteChildren(child)
+
     def deleteSelectedObject(mode):
         for obj in mode.selectedObjs:
-            mode.moves.append(("delete", obj))
-            mode.objects.remove(obj)
-            mode.clearSelection()
+            if obj in mode.objects:
+                mode.moves.append(("delete", 0, obj))
+                mode.deleteChildren(obj)
+                mode.objects.remove(obj)
+                mode.clearSelection()
+            if obj in mode.childObjects:
+                mode.moves.append(("delete", 1, obj))
+                mode.childObjects.remove(obj)
+                mode.clearSelection()
+
 
     def selectedHasText(mode):
         for obj in mode.selectedObjs:
@@ -636,7 +658,7 @@ class EditorMode(Mode):
                 return
             elif mode.checkInChildRow(childObj, parentObj):
                 mode.displayError("Not a valid placement of a child object:\nNot along the same row as other children.")
-            mode.moves.append(("static", (childObj)))
+            mode.moves.append(("static", (childObj, parentObj)))
             parentObj.childObjects.append(childObj)
             childObj.parentObject = parentObj
             childObj.static = True
@@ -794,7 +816,7 @@ class EditorMode(Mode):
             move = ("change font", [], (mode.curFont, newFont))
             for obj in mode.selectedObjs:
                 move[1].append(obj)
-            mode.moves.add(move)
+            mode.moves.append(move)
             mode.curFont = newFont
         else:
             mode.displayError("Font not available")
@@ -803,10 +825,10 @@ class EditorMode(Mode):
     def updateFontSize(mode):
         newFontSize = mode.getUserInput("What should the new font size be?")
         if newFontSize.isdigit() and int(newFontSize) > 0:
-            move = ("change font", [], (mode.curFontSize, newFontSize))
+            move = ("change font size", [], (mode.curFontSize, int(newFontSize)))
             for obj in mode.selectedObjs:
                 move[1].append(obj)
-            mode.moves.add(move)
+            mode.moves.append(move)
             mode.curFontSize = int(newFontSize)
         else:
             mode.displayError("Not a valid font size")
