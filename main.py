@@ -351,12 +351,46 @@ class EditorMode(Mode):
                 move[0].x = move[2][0]
                 move[0].y = move[2][1]
         elif nextMove[0] == "change bg":
-            pass
+            mode.bgColor = lastMove[2]
         elif nextMove[0] == "resize":
-            lastMove[1].width += lastMove[2][0]
-            lastMove[1].height += lastMove[2][1]
-            if type(lastMove[1]) == Div and lastMove[1].childObjects != []:
-                mode.resizeChildren(lastMove[1], -lastMove[2][0], -lastMove[2][1])
+            nextMove[1].width += nextMove[2][0]
+            nextMove[1].height += nextMove[2][1]
+            if type(nextMove[1]) == Div and nextMove[1].childObjects != []:
+                mode.resizeChildren(nextMove[1], -nextMove[2][0], -nextMove[2][1])
+        elif nextMove[0] == "up layer":
+            mode.moveLayerUp(nextMove[1])
+        elif nextMove[0] == "down layer":
+            mode.moveLayerDown(nextMove[1])
+        elif nextMove[0] == "static":
+            if len(nextMove[1]) == 2:
+                parentObj.childObjects.append(nextMove[1][0])
+                nextMove[1][0].parentObject = nextMove[1][1]
+            nextMove[1][0].static = True
+            mode.childObjects.append(nextMove[1][0])
+            mode.objects.remove(nextMove[1][0])
+        elif nextMove[0] == "absolute":
+            mode.makeComponentAbsolute(nextMove[1])
+        elif nextMove[0] == "change font":
+            for obj in nextMove[1]:
+                obj.font_family = nextMove[2][1]
+        elif nextMove[0] == "change font size":
+            for obj in nextMove[1]:
+                obj.font_size = nextMove[2][1]
+                obj.height = nextMove[2][1] * (obj.content.count("\n")+1)
+                obj.width = nextMove[2][1] / 2 * len(obj.content)
+        elif nextMove[0] == "change text":
+            newText = nextMove[2][1]
+            nextMove[1].content = newText
+            nextMove[1].height = (newText.count("\n")+1)* nextMove[1].font_size/2
+            nextMove[1].width = len(newText) *nextMove[1].font_size
+        elif nextMove[0] == "align":
+            for i in range(len(nextMove[1])):
+                if type(nextMove[1][i]) == Img:
+                    nextMove[1][i].x = nextMove[3][0] + nextMove[1][i].width/2
+                    nextMove[1][i].y = nextMove[3][1] + nextMove[1][i].height/2
+                else:
+                    nextMove[1][i].x = nextMove[3][0]
+                    nextMove[1][i].y = nextMove[3][1]
 
     # tool helper functions
     # learned to use from:
