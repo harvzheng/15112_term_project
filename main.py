@@ -1,19 +1,19 @@
-# TODO
-# fix undo/redo
-
 ############################################################
 # Citations:
-# cat.jpeg is under CC0 licences from unsplash.com.
+# cat used from the help slides is from unsplash.com.
 #   link: https://unsplash.com/photos/9SWHIgu8A8k
-# Graphics package provided by CMU's 15-112, which mainly uses
-# TKinter and PIL.
+# dog used from the help slides is from pexels.com.
+#   link: https://www.pexels.com/photo/adorable-blur-breed-close-up-406014/
+#
+# Graphics package (cmu_112_graphics) provided by CMU's 15-112, 
+# which mainly uses TKinter and PIL. Used to generate much of the
+# app's features.
 #   link: https://www.cs.cmu.edu/~112/notes/cmu_112_graphics.py
-# Icons used are designed by user "Kiranshastry" and are from Flaticon.com. 
+#
+# Icons used (under assets/aligns and assets/tools) are designed by user 
+# "Kiranshastry" and are from Flaticon.com. 
 # Name of the pack where the icons are from is "Alignment and Tools Icon Pack." 
 #   link: https://www.flaticon.com/packs/alignment-and-tools
-#
-# filechooser/error/colorchooser stuff from:
-# https://runestone.academy/runestone/books/published/thinkcspy/GUIandEventDrivenProgramming/02_standard_dialog_boxes.html
 ############################################################
 
 from modules.cmu_112_graphics import *
@@ -183,10 +183,9 @@ class EditorMode(Mode):
         mode.mouseX = 0
         mode.mouseY = 0
 
-######################################################
-# Controller
-######################################################
-
+    ######################################################
+    # Controller
+    ######################################################
     # mouse functions
     def mouseMoved(mode, event):
         mode.updateMouse(event.x, event.y)
@@ -308,15 +307,35 @@ class EditorMode(Mode):
             if type(lastMove[1]) == Div and lastMove[1].childObjects != []:
                 mode.resizeChildren(lastMove[1], lastMove[2][0], lastMove[2][1])
         elif lastMove[0] == "static":
-            pass
+            mode.makeComponentAbsolute(lastMove[1])
         elif lastMove[0] == "absolute":
-            pass
+            if len(lastMove[1]) == 2:
+                parentObj.childObjects.append(lastMove[1][0])
+                lastMove[1][0].parentObject = lastMove[1][1]
+            lastMove[1][0].static = True
+            mode.childObjects.append(lastMove[1][0])
+            mode.objects.remove(lastMove[1][0])
         elif lastMove[0] == "change font":
-            pass
+            for obj in lastMove[1]:
+                obj.font_family = lastMove[2][0]
         elif lastMove[0] == "change font size":
-            pass
+            for obj in lastMove[1]:
+                obj.font_size = lastMove[2][0]
+                obj.height = lastMove[2][0] * (obj.content.count("\n")+1)
+                obj.width = lastMove[2][0] / 2 * len(obj.content)
         elif lastMove[0] == "change text":
-            pass
+            newText = lastMove[2][0]
+            lastMove[1].content = newText
+            lastMove[1].height = (newText.count("\n")+1)* lastMove[1].font_size/2
+            lastMove[1].width = len(newText) *lastMove[1].font_size
+        elif lastMove[0] == "align":
+            for i in range(len(lastMove[1])):
+                lastMove[1][i].x = lastMove[2][0]
+                lastMove[1][i].y = lastMove[2][1]
+        elif lastMove[0] == "up layer":
+            mode.moveLayerDown(lastMove[1])
+        elif lastMove[0] == "down layer":
+            mode.moveLayerUp(lastMove[1])
 
     def redo(mode):
         if len(mode.nextMoves) == 0:
@@ -331,12 +350,17 @@ class EditorMode(Mode):
             for move in nextMove[1:]:
                 move[0].x = move[2][0]
                 move[0].y = move[2][1]
-        elif lastMove[0] == "change bg":
+        elif nextMove[0] == "change bg":
             pass
         elif nextMove[0] == "resize":
-            pass
+            lastMove[1].width += lastMove[2][0]
+            lastMove[1].height += lastMove[2][1]
+            if type(lastMove[1]) == Div and lastMove[1].childObjects != []:
+                mode.resizeChildren(lastMove[1], -lastMove[2][0], -lastMove[2][1])
 
     # tool helper functions
+    # learned to use from:
+    # https://runestone.academy/runestone/books/published/thinkcspy/GUIandEventDrivenProgramming/02_standard_dialog_boxes.html
     def pickNewColor(mode):
         newColor = colorchooser.askcolor(initialcolor=mode.curColor)
         if newColor != (None, None):
@@ -352,12 +376,17 @@ class EditorMode(Mode):
                     mode.pickNewColor()
                 elif button.functionName == "makeStatic":
                     mode.makeComponentStatic()
-                elif button.functionName == "makeAbsolute":
-                    mode.makeComponentAbsolute()
+                elif button.functionName == "makeAbsolute" and len(mode.selectedObjs) == 1:
+                    obj = mode.selectedObjs[0]
+                    if obj.parentObject != None:
+                        mode.moves.append(("absolute", (obj, parentObject)))
+                    else:
+                        mode.moves.append(("absolute", (obj)))
+                    mode.makeComponentAbsolute(obj)
                 elif len(mode.selectedObjs) == 1 and button.functionName == "moveLayerUp":
-                    mode.moveLayerUp()
+                    mode.moveLayerUp(mode.selectedObjs[0])
                 elif len(mode.selectedObjs) == 1 and button.functionName == "moveLayerDown":
-                    mode.moveLayerDown()
+                    mode.moveLayerDown(mode.selectedObjs[0])
 
     def detectResizeClick(mode, x, y):
         obj = mode.selectedObjs[0]
@@ -369,17 +398,17 @@ class EditorMode(Mode):
             resizeClick = ((objX+obj.width-5 < x and objX+obj.width+5 > x) and (objY+obj.height-5 < y and objY+obj.height+5 > y))
             return resizeClick
 
-    def moveLayerDown(mode):
-        if mode.selectedObjs[0] in mode.objects:
-            obj = mode.selectedObjs[0]
+    def moveLayerDown(mode, obj):
+        if obj in mode.objects:
+            mode.moves.append(('down layer', obj))
             newIndex = mode.objects.index(obj) - 1
             if newIndex >= 0:
                 mode.objects.remove(obj)
                 mode.objects.insert(newIndex, obj)
 
-    def moveLayerUp(mode):
-        if mode.selectedObjs[0] in mode.objects:
-            obj = mode.selectedObjs[0]
+    def moveLayerUp(mode, obj):
+        if obj in mode.objects:
+            mode.moves.append(('up layer', obj))
             newIndex = mode.objects.index(obj) + 1
             if len(mode.objects) > newIndex:
                 mode.objects.remove(obj)
@@ -470,19 +499,21 @@ class EditorMode(Mode):
                 return True
         return False
 
+    # learned to use filedialog from:
+    # https://runestone.academy/runestone/books/published/thinkcspy/GUIandEventDrivenProgramming/02_standard_dialog_boxes.html
     def placeImage(mode, x, y):
         filetypes=[('JPEG', 'jpeg'), ('JPG', 'jpg'), ('PNG', 'png')]
         imagePath = filedialog.askopenfilename( initialdir=os.getcwd(),
-                                    title="Please select a file:",
+                                    title="Please select an image:",
                                     filetypes=filetypes)
         if os.path.isfile(imagePath):
-                image = mode.loadImage(imagePath)
-                imgWidth, imgHeight = image.size
-                newImage = mode.scaleImage(image, 500/(max(imgWidth, imgHeight)))
-                newImage.format = image.format
-                newImg = Img(x, y, 500/(max(imgWidth, imgHeight)), newImage, image)
-                mode.objects.append(newImg)
-                mode.moves.append(("add", newImg))
+            image = mode.loadImage(imagePath)
+            imgWidth, imgHeight = image.size
+            newImage = mode.scaleImage(image, 500/(max(imgWidth, imgHeight)))
+            newImage.format = image.format
+            newImg = Img(x, y, 500/(max(imgWidth, imgHeight)), newImage, image)
+            mode.objects.append(newImg)
+            mode.moves.append(("add", newImg))
 
     # move helper functions
     def moveChildren(mode, obj, dx, dy):
@@ -548,13 +579,42 @@ class EditorMode(Mode):
                 mode.startY = y
 
     # static/absolute helper functions
-    def makeComponentAbsolute(mode):
+    def makeComponentStatic(mode):
         if len(mode.selectedObjs) == 1:
-            if mode.selectedObjs[0] in mode.childObjects:
-                childObj = mode.selectedObjs[0]
-                childObj.parentObject.childObjects.remove(childObj)    
-                mode.objects.append(childObj)
-            mode.selectedObjs[0].static = False
+            mode.selectedObjs[0].static = True
+            mode.moves.append(("static", (mode.selectedObjs[0])))
+        elif len(mode.selectedObjs) == 2 and mode.selectedHasDiv():
+            obj1 = mode.selectedObjs[0]
+            obj2 = mode.selectedObjs[1]
+            if ((obj2.x < obj1.x and obj2.y < obj1.y) and 
+                (obj1.width < obj2.width and obj1.height < obj2.height) and 
+                type(obj2) == Div):
+                parentObj, childObj = obj2, obj1
+            elif ((obj2.x > obj1.x and obj2.y > obj1.y) and
+                    (obj1.width > obj2.width and obj1.height > obj2.height) and 
+                    type(obj1) == Div):
+                parentObj, childObj = obj1, obj2
+            else:
+                mode.displayError("Not a valid placement of a child object:\nChild is not fully within the parent.")
+                return
+            if mode.childrenShareSpace(childObj, parentObj):
+                mode.displayError("Not a valid placement of a child object:\nChild overlaps an already existing child.")
+                return
+            elif mode.checkInChildRow(childObj, parentObj):
+                mode.displayError("Not a valid placement of a child object:\nNot along the same row as other children.")
+            mode.moves.append(("static", (childObj)))
+            parentObj.childObjects.append(childObj)
+            childObj.parentObject = parentObj
+            childObj.static = True
+            mode.childObjects.append(childObj)
+            mode.objects.remove(childObj)
+        mode.selectedObjs = []
+
+    def makeComponentAbsolute(mode, obj):
+        if obj in mode.childObjects:
+            obj.parentObject.childObjects.remove(obj)    
+            mode.objects.append(obj)
+        obj.static = False
 
     def childrenShareSpace(mode, childObj, parentObj):
         for child in parentObj.childObjects:
@@ -591,40 +651,14 @@ class EditorMode(Mode):
                 return True
         return False
 
-    def makeComponentStatic(mode):
-        if len(mode.selectedObjs) == 1:
-            mode.selectedObjs[0].static = True
-        elif len(mode.selectedObjs) == 2 and mode.selectedHasDiv():
-            obj1 = mode.selectedObjs[0]
-            obj2 = mode.selectedObjs[1]
-            if ((obj2.x < obj1.x and obj2.y < obj1.y) and 
-                (obj1.width < obj2.width and obj1.height < obj2.height) and 
-                type(obj2) == Div):
-                parentObj, childObj = obj2, obj1
-            elif ((obj2.x > obj1.x and obj2.y > obj1.y) and
-                    (obj1.width > obj2.width and obj1.height > obj2.height) and 
-                    type(obj1) == Div):
-                parentObj, childObj = obj1, obj2
-            else:
-                mode.displayError("Not a valid placement of a child object:\nChild is not fully within the parent.")
-                return
-            if mode.childrenShareSpace(childObj, parentObj):
-                mode.displayError("Not a valid placement of a child object:\nChild overlaps an already existing child.")
-                return
-            elif mode.checkInChildRow(childObj, parentObj):
-                mode.displayError("Not a valid placement of a child object:\nNot along the same row as other children.")
-            parentObj.childObjects.append(childObj)
-            childObj.parentObject = parentObj
-            childObj.static = True
-            mode.childObjects.append(childObj)
-            mode.objects.remove(childObj)
-        mode.selectedObjs = []
-
     # align helper functions
     def alignSelectedObjects(mode, align):
         toAlignPositions = []
         newPosition = None # x coord or y coord, depending on which align was selected
+        move = ("align", [], [], []) # move, objects, initialCoords, finalCoords
         for obj in mode.selectedObjs:
+            move[1].append(obj)
+            move[2].append((obj.x, obj.y))
             if type(obj) == Img:
                 objX, objY = mode.getCoordsOfImg(obj)
             else:
@@ -647,6 +681,11 @@ class EditorMode(Mode):
             else:
                 toAlignPositions.append(objY + obj.height)
                 newPosition = max(toAlignPositions)
+            if align < 3:
+                move[3].append((newPosition, objY))
+            else:
+                move[3].append((objX, newPosition))
+
         mode.alignSelectedObjectPositions(newPosition, align)
 
     def alignSelectedObjectPositions(mode, newPosition, align):
@@ -694,10 +733,13 @@ class EditorMode(Mode):
                 mode.handleTextButtonPress(button.functionName)
 
     # export helper functions
-
+    # learned how to use pickle for saveCanvas and importCanvas from:
+    # https://www.thoughtco.com/using-pickle-to-save-objects-2813661
+    # learned filedialog from:
+    # https://runestone.academy/runestone/books/published/thinkcspy/GUIandEventDrivenProgramming/02_standard_dialog_boxes.html
     def saveCanvas(mode):
         filePath = filedialog.asksaveasfilename(initialdir=os.getcwd(),
-                                      title="Please select a file name for saving:",
+                                      title="Save canvas as:",
                                       filetypes=[("Object", "obj")])
         if filePath != None and filePath != "":
             f = open(filePath, "wb")
@@ -705,7 +747,7 @@ class EditorMode(Mode):
 
     def importCanvas(mode):
         filePath = filedialog.askopenfilename(initialdir=os.getcwd(),
-                                title="Please select a file name for saving:",
+                                title="Import canvas from:",
                                       filetypes=[("Object", "obj")])
         if os.path.isfile(filePath):
             f = open(filePath, "rb")
@@ -715,6 +757,10 @@ class EditorMode(Mode):
     def updateFontFamily(mode):
         newFont = mode.getUserInput("What should the new font be?")
         if newFont.lower() in mode.tkinterFonts:
+            move = ("change font", [], (mode.curFont, newFont))
+            for obj in mode.selectedObjs:
+                move[1].append(obj)
+            mode.moves.add(move)
             mode.curFont = newFont
         else:
             mode.displayError("Font not available")
@@ -723,11 +769,17 @@ class EditorMode(Mode):
     def updateFontSize(mode):
         newFontSize = mode.getUserInput("What should the new font size be?")
         if newFontSize.isdigit() and int(newFontSize) > 0:
+            move = ("change font", [], (mode.curFontSize, newFontSize))
+            for obj in mode.selectedObjs:
+                move[1].append(obj)
+            mode.moves.add(move)
             mode.curFontSize = int(newFontSize)
         else:
             mode.displayError("Not a valid font size")
         mode.updateSelected()
 
+    # learned to use messageboxfrom:
+    # https://runestone.academy/runestone/books/published/thinkcspy/GUIandEventDrivenProgramming/02_standard_dialog_boxes.html
     def displayError(mode, message):
         messagebox.showerror("Error", message)
 
@@ -739,7 +791,7 @@ class EditorMode(Mode):
         elif functionName == "editText":
             newText = mode.getUserInput("New text?")
             if type(newText) == str:
-                mode.moves.append(("change text", (mode.selectedObjs[0], newText)))
+                mode.moves.append(("change text", mode.selectedObjs[0], (mode.selectedObjs[0].content, newText)))
                 mode.selectedObjs[0].content = newText
                 mode.selectedObjs[0].height = (newText.count("\n")+1)* mode.selectedObjs[0].font_size/2
                 mode.selectedObjs[0].width = len(newText) * mode.selectedObjs[0].font_size
@@ -950,6 +1002,9 @@ class EditorMode(Mode):
         mode.drawToolbar(canvas)
         mode.drawCursor(canvas)
         canvas.create_text(mode.width/2, 60, text=f"shift on?: {mode.shiftHeld}")
+
+# modalApp built with reference to section 7 of these course notes:
+# https://www.cs.cmu.edu/~112/notes/notes-animations-part2.html
 
 class MyModalApp(ModalApp):
     def appStarted(app):

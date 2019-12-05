@@ -1,5 +1,0 @@
-layers up + down
-icon for rectangle tool isn't best
-separating icons in top right
-help splash screen
-add help/splash screen

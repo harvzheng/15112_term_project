@@ -106,3 +106,11 @@ Some additional features I'll implement/have implemented are:
 * Change background color of the canvas
 
 Everything else will go on as previously stated.
+
+## TP3 Update
+
+Suggestions from the TP User-a-thon included:
+* Adding a splash/help screen so users know how to use the program
+* Adding a layer up/down program
+
+both of which have been implemented.
