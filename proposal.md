@@ -114,3 +114,11 @@ Suggestions from the TP User-a-thon included:
 * Adding a layer up/down program
 
 both of which have been implemented.
+
+Since TP2, I've also implemented these things:
+* Static positioning works, but objects must all be in the same row.
+* Import/exporting a canvas
+* Changing text, as well as changing font size and family
+* Warning banner for bad actions, pop up color selector
+* Resizing stuff
+* Icons to bars and cursor that moves with mouse

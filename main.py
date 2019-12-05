@@ -5,6 +5,11 @@
 # dog used from the help slides and the video is from pexels.com.
 #   link: https://www.pexels.com/photo/adorable-blur-breed-close-up-406014/
 #
+# websites featured in the video were ones I previously developed:
+#   https://www.apollo.io, where I developed the vast majority of the marketing website (*not* the web app, or app.apollo.io)
+#   http://impressionator.herokuapp.com/, which I developed much of as part of a hackathon
+#   http://hidden-scrubland-6967.herokuapp.com/, which I developed to practice Ruby on Rails
+#
 # Graphics package (cmu_112_graphics) provided by CMU's 15-112, 
 # which mainly uses TKinter and PIL. Used to generate much of the
 # app's features.
@@ -1022,27 +1027,29 @@ class EditorMode(Mode):
     # asks new font, and changes it. also changes font of all selected objects
     def updateFontFamily(mode):
         newFont = mode.getUserInput("What should the new font be?")
-        if newFont.lower() in mode.tkinterFonts:
-            move = ("change font", [], (mode.curFont, newFont))
-            for obj in mode.selectedObjs:
-                move[1].append(obj)
-            mode.moves.append(move)
-            mode.curFont = newFont
-        else:
-            mode.displayError("Font not available")
+        if newFont != None:
+            if newFont.lower() in mode.tkinterFonts:
+                move = ("change font", [], (mode.curFont, newFont))
+                for obj in mode.selectedObjs:
+                    move[1].append(obj)
+                mode.moves.append(move)
+                mode.curFont = newFont
+            else:
+                mode.displayError("Font not available")
         mode.updateSelected()
 
     # asks new font size, and changes it. also changes font of all selected objects
     def updateFontSize(mode):
         newFontSize = mode.getUserInput("What should the new font size be?")
-        if newFontSize.isdigit() and int(newFontSize) > 0:
-            move = ("change font size", [], (mode.curFontSize, int(newFontSize)))
-            for obj in mode.selectedObjs:
-                move[1].append(obj)
-            mode.moves.append(move)
-            mode.curFontSize = int(newFontSize)
-        else:
-            mode.displayError("Not a valid font size")
+        if newFontSize != None:
+            if newFontSize.isdigit() and int(newFontSize) > 0:
+                move = ("change font size", [], (mode.curFontSize, int(newFontSize)))
+                for obj in mode.selectedObjs:
+                    move[1].append(obj)
+                mode.moves.append(move)
+                mode.curFontSize = int(newFontSize)
+            else:
+                mode.displayError("Not a valid font size")
         mode.updateSelected()
 
     # misc

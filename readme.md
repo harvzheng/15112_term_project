@@ -1,6 +1,6 @@
 # WebSketch
 
-Created as a CMU 15-112 term project. WebSketch allows a user to lay out a website via a Photoshop-like software, including rectangles, text, and images, and export that to HTML and CSS. 
+Created as a CMU 15-112 term project. WebSketch allows a user to lay out a website via a Photoshop-like software, including rectangles, text, and images, and export it to HTML and CSS. Features include moving up and down layers, resizing, and basic relative positioning of objects. You can also save your canvas and import it at any time.
 
 ## Getting Started
 This project utilizes Python 3. In addition to Python 3, you will need the following modules installed:
@@ -21,7 +21,7 @@ Once this is set up, you can clone the repository into a directory of your choic
 git clone git@github.com:harvzheng/15112_term_project.git
 ```
 
-To run, change the directory into the project and execute the following line in a terminal:
+To run, `cd` into the `15112_term_project` and execute the following line in a terminal:
 ```
 python3 main.py
 ```
