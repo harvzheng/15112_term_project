@@ -32,4 +32,6 @@ python3 main.py
 * Image tool: i
 * Undo: shift + z
 * Redo: shift + y
-* Selecting multiple objects: hold 's', and click on objects *with cursor tool*
+* Selecting multiple objects: press 's' to toggle shift, and click on objects *with cursor tool*
+* Deselect all objects: esc
+* Help mode: h

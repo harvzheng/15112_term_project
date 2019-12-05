@@ -1,7 +1,14 @@
+############################################################
+# exporter.py
+# exports the python objects into HTML and CSS with a lot
+# of file i/o and string manipulation.
+############################################################
 import os
 from classes import *
 from PIL import Image
 
+# deletes any existing export and rewrites HTML, getting line by line
+# via the list of objects.
 def exportToHTML(fileName, listOfObjects):
     cleanFiles()
     os.mkdir("export")
@@ -21,6 +28,7 @@ def exportToHTML(fileName, listOfObjects):
     f.write(html)
     f.close()
 
+# for a parent tag, recursively adds child tags.
 def exportChildHTML(obj, level=1):
     if type(obj) != Div or obj.childObjects == []:
         newHTML = getPartialHTMLLine(obj)
@@ -31,6 +39,7 @@ def exportChildHTML(obj, level=1):
             html += exportChildHTML(child, level+1)
         return html
 
+# closes all unclosed divs.
 def closeTags(html):
     newHTML = ""
     prevNumTabs = 0
@@ -49,6 +58,7 @@ def closeTags(html):
         prevNumTabs = numTabs
     return newHTML
 
+# returns a partial HTMl line for parents and children.
 def getPartialHTMLLine(obj):
     if isinstance(obj, Div):
         newHTML = f'\t<div class={obj.cssClass}>\n'
@@ -61,6 +71,7 @@ def getPartialHTMLLine(obj):
         newHTML = f'\t<img class={obj.cssClass} src="{imagePath}"/>\n'
     return newHTML
 
+# returns a regular HTML line.
 def getHTMLLine(obj):
     if isinstance(obj, Div):
         newDiv = f'\t\t<div class={obj.cssClass}></div>\n'
@@ -75,6 +86,7 @@ def getHTMLLine(obj):
         newImg = f'\t\t<img class={obj.cssClass} src="{imagePath}"/>\n'
         return newImg
 
+# counts the number of images in a directory so the images don't overwrite each other.
 def countImages():
     numImages = 0
     if os.path.isdir('export'):
@@ -84,6 +96,7 @@ def countImages():
                 numImages += 1
     return numImages
 
+# converts the cssclasses into actual css
 def exportToCSS(backgroundColor, dictOfClasses):
     css = open("export/style.css", "w")
     bgColor = "body {\n\tbackground-color: " + backgroundColor + ";\n}\n"
@@ -104,6 +117,7 @@ def exportToCSS(backgroundColor, dictOfClasses):
         css.write(cssCode)
     css.close()
 
+# returns css for divs based on its properties
 def getCSSDivCode(cssClass, cssClassName):
     cssCode = f'\n.{cssClassName} {{\n'
     for prop in cssClass.__dict__:
@@ -121,6 +135,7 @@ def getCSSDivCode(cssClass, cssClassName):
     cssCode += '\tdisplay:flex\n}\n'
     return cssCode
 
+# returns css for spans based on its properties
 def getCSSTextCode(cssClass, cssClassName):
     cssCode = f'\n.{cssClassName} {{\n'
     for prop in cssClass.__dict__:
@@ -144,6 +159,7 @@ def getCSSTextCode(cssClass, cssClassName):
     cssCode += '}\n'
     return cssCode
 
+# returns css for img based on its properties
 def getCSSImgCode(cssClass, cssClassName):
     cssCode = f'\n.{cssClassName} {{\n'
     for prop in cssClass.__dict__:
@@ -159,6 +175,7 @@ def getCSSImgCode(cssClass, cssClassName):
     cssCode += '}\n'
     return cssCode
 
+# initial html code that most html documents will have.
 def getInitialHTML(fileName):
     initialHTML = f'''
 <!DOCTYPE html>
@@ -171,6 +188,7 @@ def getInitialHTML(fileName):
 '''
     return initialHTML
 
+# removes the export folder.
 def cleanFiles():
     if os.path.isdir('export'):
         for filename in os.listdir('export'):
@@ -178,6 +196,7 @@ def cleanFiles():
                 os.remove('export/' + filename)
         os.rmdir('export')
 
+# returns the final HTML.
 def getFinalHTML():
     finalHTML = '''
     </body>
